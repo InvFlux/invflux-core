@@ -1,0 +1,74 @@
+name: CI
+
+# PUBLISH GATE — this file runs on the public mirror (InvFlux/invflux-core), not here.
+#
+# It lives at .github/mirror/ and is inert in the working repo: GitHub Actions only reads
+# .github/workflows/*.yml and never recurses into subdirectories. bin/publish-package.sh
+# deletes the working repo's .github/workflows/ and promotes this directory into its place
+# as the snapshot is staged.
+#
+# private docs deleted, bin/ and tests/fixtures/ removed entirely. The only proof the
+# transformed tree still installs, tests and type-checks is to run it there. The working
+# repo's CI proves nothing about it, and publish-package.sh's step-4 lint only checks doc
+# references. Without this job the snapshot is unverified by construction.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mirror-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: Sanitized snapshot builds, tests, type-checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: invflux-core }
+
+      # attrecord and slot-flow publish from their own public repos, so the mirror
+      # resolves them the same way any consumer would.
+      - uses: actions/checkout@v4
+        with: { repository: Nandan108/attrecord, path: attrecord, fetch-depth: 0 }
+      - uses: actions/checkout@v4
+        with: { repository: Nandan108/slot-flow, path: slot-flow, fetch-depth: 0 }
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, json
+          coverage: none
+
+      # The InvFlux packages are deliberately not on Packagist, so the mirror resolves
+      # siblings from the checked-out sibling mirrors. That is stronger than pinning a
+      # published version: it proves the sanitized trees work against each other, which is
+      # the thing publishing could break.
+      # composer.local.json is NOT usable here: the merge plugin that reads it is a dev
+      # dependency, absent on a fresh checkout, so the merge silently no-ops and composer
+      # resolves published releases instead of the working tree. See .github/ci-siblings.php.
+      - name: Resolve siblings from the checked-out tree
+        working-directory: invflux-core
+        run: php .github/ci-siblings.php '{"nandan108/attrecord":"../attrecord","nandan108/slot-flow":"../slot-flow"}'
+
+      - name: Install
+        working-directory: invflux-core
+        run: composer update --prefer-dist --no-progress --no-interaction
+
+      # and a strip that leaves a malformed comment shows up here.
+      - name: PHP CS Fixer (dry run)
+        working-directory: invflux-core
+        run: composer cs-fix -- --dry-run --diff
+
+      - name: Psalm
+        working-directory: invflux-core
+        run: composer psalm
+
+      - name: Tests
+        working-directory: invflux-core
+        run: composer test

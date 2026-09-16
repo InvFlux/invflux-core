@@ -1,0 +1,62 @@
+{
+    "name": "nandan108/invflux-core",
+    "version": "0.1.0",
+    "description": "",
+    "type": "library",
+    "license": [
+        "GPL-2.0-or-later",
+        "LicenseRef-InvFlux-Commercial"
+    ],
+    "autoload": {
+        "psr-4": {
+            "Nandan108\\InvFlux\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "require": {
+        "php": "^8.1",
+        "nandan108/attrecord": "^0.21",
+        "nandan108/slot-flow": "^0.3",
+        "psr/container": "^2.0"
+    },
+    "require-dev": {
+        "php": "^8.1",
+        "nunomaduro/collision": "^6.4",
+        "phpunit/phpunit": "^10.0.0",
+        "vimeo/psalm": "^6.12",
+        "friendsofphp/php-cs-fixer": "^3.92",
+        "wikimedia/composer-merge-plugin": "^2.0"
+    },
+    "extra": {
+        "merge-plugin": {
+            "include": [
+                "composer.local.json"
+            ],
+            "recurse": true,
+            "replace": true,
+            "ignore-duplicates": false
+        }
+    },
+    "authors": [
+        {
+            "name": "Samuel de Rougemont",
+            "email": "nandan108@gmail.com"
+        }
+    ],
+    "scripts": {
+        "cs-fix": "./vendor/bin/php-cs-fixer fix --allow-risky=yes --diff",
+        "psalm": "./vendor/bin/psalm",
+        "test": "./vendor/bin/phpunit",
+        "testAndCover": "./vendor/bin/phpunit --coverage-text --coverage-html coverage"
+    },
+    "config": {
+        "allow-plugins": {
+            "phpdocumentor/shim": true,
+            "wikimedia/composer-merge-plugin": true
+        }
+    }
+}
