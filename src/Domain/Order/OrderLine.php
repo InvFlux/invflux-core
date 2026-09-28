@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Nandan108\InvFlux\Domain\Order;
 
+use Nandan108\Attrecord\Attribute\Check;
 use Nandan108\Attrecord\Attribute\Column;
+use Nandan108\Attrecord\Attribute\ForeignKey;
 use Nandan108\Attrecord\Attribute\Index;
 use Nandan108\Attrecord\Attribute\LockTier;
+use Nandan108\Attrecord\Attribute\PrimaryKey;
 use Nandan108\Attrecord\Attribute\Relation;
 use Nandan108\Attrecord\Attribute\Table;
 use Nandan108\Attrecord\Attribute\UniqueKey;
@@ -18,7 +21,6 @@ use Nandan108\Attrecord\Enum\RelationType;
 use Nandan108\Attrecord\Exception\RecordValidationException;
 use Nandan108\Attrecord\Record;
 use Nandan108\InvFlux\Domain\Shipment\CostBasis;
-use Nandan108\InvFlux\Identity\RecordIdentity;
 
 /**
  * One line on an order. Projected for **every** order line regardless of governance — a line whose
@@ -42,21 +44,102 @@ use Nandan108\InvFlux\Identity\RecordIdentity;
  * @psalm-suppress PossiblyUnusedProperty Properties are hydrated by attrecord from row data.
  */
 #[Table(name: 'invflux_order_lines')]
+#[PrimaryKey(columns: ['order_id', 'line_id'])]
+// A kit component points at the line it was exploded from, within the same order.
+//
+// CASCADE, and it has to be. RESTRICT here does not merely make component deletion explicit — it
+// makes any order carrying a kit **undeletable**: deleting the order cascades into its lines, and
+// that cascade then hits the RESTRICT between a kit line and its own components in the very set
+// being removed. InnoDB has no deferred constraints, so it refuses the whole statement with
+// errno 1451. Measured on a probe carrying this exact constraint shape, not reasoned about —
+// note that a `CREATE TABLE … LIKE` copy cannot exhibit it, because LIKE does not copy foreign
+// keys. CASCADE deletes the order cleanly, and removing a kit line takes its components with it,
+// which is the domain rule anyway.
+#[ForeignKey(
+    column: ['order_id', 'parent_line_id'],
+    references: OrderLine::class,
+    onDelete: ForeignKeyAction::Cascade,
+)]
+// A line must name either the host item it projects or the line it was exploded from. The unique
+// key `(order_id, external_line_ref)` cannot say this: component lines have no host counterpart, so
+// they carry no ref, and two of them in one order would collide on the same empty string. NULL is
+// both the honest value and the one a UNIQUE key admits more than once — and this check is what
+// keeps the guarantee the NOT NULL used to give, for every writer including those that never reach
+// OrderLine::validate().
+#[Check('ref_or_parent', 'external_line_ref IS NOT NULL OR parent_line_id IS NOT NULL')]
 #[LockTier(21)]
 final class OrderLine extends Record
 {
-    /** 16-byte binary UUIDv7 — minted on save via RecordIdentity. */
-    #[Column(ColumnType::Binary, length: 16)]
-    public ?string $id = null;
-
-    /** 16-byte binary UUIDv7 FK to invflux_orders.id. */
+    /**
+     * 16-byte binary UUIDv7 FK to `invflux_orders.id`, and the key's leading member.
+     *
+     * A line has no identity apart from its order — it is the order's second line, not a document
+     * in its own right — so it is numbered *within* one rather than carrying a UUID of its own.
+     * What makes that affordable is that **the ledger never names an order line**: its two
+     * reference lanes are a 16-byte column and an int column, so a document a movement can cite
+     * has to keep a 16-byte key. Orders, shipments and corrections do. Lines are cited through
+     * their order, and their subject carries the per-product attribution, which is why this one
+     * could give its surrogate up.
+     */
     #[Column(ColumnType::Binary, length: 16)]
     #[UniqueKey('uniq_order_line')]
     public ?string $order_id = null;
 
-    #[Column(ColumnType::VarChar, length: 64)]
+    /**
+     * The line's number within its order, allocated from {@see Order::$next_line_no}.
+     *
+     * **Monotonic per order and never reused**, which is the whole reason the allocator is a
+     * column on the order rather than `MAX(line_id) + 1` here. A line that is pruned — its source
+     * item removed from the host document, nothing referring to it — frees its number under
+     * `MAX + 1`, and a client still holding that number would then address a different product.
+     * A high-water mark costs two bytes on the order and makes the confusion impossible.
+     *
+     * `SMALLINT` rather than `TINYINT` on measurement, not instinct: the busiest order on the
+     * development store carries 53 lines, which is close enough to 255 to be a bad bet.
+     */
+    #[Column(ColumnType::SmallIntUnsigned)]
+    public int $line_id = 0;
+
+    /**
+     * The line this one was exploded from, when a kit was expanded into its components — numbered
+     * in the same order's numbering, so {@see $order_id} serves both halves of the reference.
+     *
+     * That shared column is the point, not the two bytes: a component line and its parent are
+     * named by one `order_id`, so a component of *another order's* kit cannot be represented at
+     * all. A surrogate parent id could only be checked, never made impossible.
+     *
+     * `null` on an ordinary line, and on a kit's own line — a parent has no parent.
+     */
+    #[Column(ColumnType::SmallIntUnsigned, nullable: true)]
+    public ?int $parent_line_id = null;
+
+    /**
+     * Which version of the kit's bill of materials was exploded onto this line's components.
+     *
+     * A **number, deliberately not a foreign key.** An order line is a historical record: it has
+     * to keep naming the BOM it was built from after that BOM's header is deleted or its subject
+     * retired, and an FK could only offer RESTRICT (blocking the delete to protect the history) or
+     * SET NULL (erasing the history to permit it). Both answer the wrong question. `subject_id` is
+     * already on this line, so `(subject_id, bom_version)` names the BOM completely under the
+     * one-versioned-header-per-subject rule.
+     *
+     * `null` on any line not produced by a kit explosion.
+     */
+    #[Column(ColumnType::SmallIntUnsigned, nullable: true)]
+    public ?int $bom_version = null;
+
+    /**
+     * The source system's identifier for this line (a WooCommerce `order_item_id`), unique within
+     * the order so the same host line cannot be projected twice.
+     *
+     * **`null` means this line has no host counterpart**, which is a fact rather than a gap: a kit
+     * component is created by exploding {@see $parent_line_id}, not by a host document naming it.
+     * `''` would say the host gave us an empty string, and would collide under the unique key the
+     * moment an order carried two components.
+     */
+    #[Column(ColumnType::VarChar, length: 64, nullable: true)]
     #[UniqueKey('uniq_order_line')]
-    public string $external_line_ref = '';
+    public ?string $external_line_ref = null;
 
     #[Column(ColumnType::IntUnsigned)]
     #[Index('idx_subject')]
@@ -289,12 +372,27 @@ final class OrderLine extends Record
         return number_format($cents / 100, 2, '.', '');
     }
 
-    #[\Override]
-    public function beforeSave(): void
+    /**
+     * A stable string for the whole key, for use as an array key when lines are collected into a
+     * map — which several callers do, to pair projection rows against document rows.
+     *
+     * **Keying such a map by the line number alone is wrong**, and wrong in the quiet way: line 3
+     * exists on almost every order, so a map keyed by number silently merges lines from different
+     * orders and the last one written wins. That could not happen while the key was a UUID, so it
+     * is a hazard this change introduces and this method exists to remove.
+     *
+     * The encoding is the order's hex followed by the number. Its only contract is that equal keys
+     * mean the same line and different keys different lines; nothing parses it back.
+     */
+    public static function keyOf(?string $orderId, int $lineId): string
     {
-        if (null === $this->id) {
-            $this->id = RecordIdentity::mintId();
-        }
+        return bin2hex($orderId ?? '').':'.$lineId;
+    }
+
+    /** This line's {@see keyOf()}. */
+    public function key(): string
+    {
+        return self::keyOf($this->order_id, $this->line_id);
     }
 
     #[\Override]
@@ -306,9 +404,28 @@ final class OrderLine extends Record
                 ['field' => 'order_id'],
             );
         }
+        // Both key members, and this one has no null to be caught by: it is a typed int with a 0
+        // default, so "never allocated" and "allocated zero" are the same value to attrecord's
+        // incomplete-key guard. Writers take it from Order::$next_line_no, which starts at 1.
+        if ($this->line_id <= 0) {
+            throw new RecordValidationException(
+                'OrderLine.line_id must be a positive integer allocated from Order.next_line_no.',
+                ['field' => 'line_id', 'value' => $this->line_id],
+            );
+        }
+        // Mirrors `chk_ref_or_parent`, which the database enforces for every writer. Kept here too
+        // so a line built in memory fails at the write that made it, not at the constraint.
+        if (null === $this->external_line_ref && null === $this->parent_line_id) {
+            throw new RecordValidationException(
+                'OrderLine.external_line_ref may only be null on a line exploded from a parent '
+                .'(parent_line_id set); a line projected from a host document must name it.',
+                ['field' => 'external_line_ref'],
+            );
+        }
         if ('' === $this->external_line_ref) {
             throw new RecordValidationException(
-                'OrderLine.external_line_ref must be a non-empty string.',
+                'OrderLine.external_line_ref must be a non-empty string when set; '
+                .'a line with no host counterpart carries null, not an empty string.',
                 ['field' => 'external_line_ref'],
             );
         }
@@ -316,6 +433,26 @@ final class OrderLine extends Record
             throw new RecordValidationException(
                 'OrderLine.subject_id must be a positive integer.',
                 ['field' => 'subject_id'],
+            );
+        }
+        if (null !== $this->parent_line_id && $this->parent_line_id <= 0) {
+            throw new RecordValidationException(
+                'OrderLine.parent_line_id must be null or a positive line number within the same order.',
+                ['field' => 'parent_line_id', 'value' => $this->parent_line_id],
+            );
+        }
+        // The foreign key cannot catch this one: a row pointing at itself satisfies it, since the
+        // referenced row exists — it is this row. A one-line cycle is still not a parentage.
+        if (null !== $this->parent_line_id && $this->parent_line_id === $this->line_id) {
+            throw new RecordValidationException(
+                'OrderLine.parent_line_id must not name the line itself.',
+                ['field' => 'parent_line_id', 'value' => $this->parent_line_id],
+            );
+        }
+        if (null !== $this->bom_version && $this->bom_version <= 0) {
+            throw new RecordValidationException(
+                'OrderLine.bom_version must be null or a positive version number.',
+                ['field' => 'bom_version', 'value' => $this->bom_version],
             );
         }
     }

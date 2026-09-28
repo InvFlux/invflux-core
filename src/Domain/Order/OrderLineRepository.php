@@ -17,22 +17,45 @@ use Nandan108\InvFlux\Domain\Subject\SubjectId;
 interface OrderLineRepository
 {
     /**
-     * Find one line by surrogate id (16-byte binary UUIDv7), or null if not found.
+     * Lines of one order, by their numbers within it.
      *
-     * @param string $id 16-byte binary UUIDv7
+     * **Bulk is the operation; one line is its degraded case.** A repository read shaped around a
+     * single key is an invitation to call it once per item, and the invitation gets accepted —
+     * every singular read this interface used to offer was being called inside a loop. Shaping it
+     * the other way round makes `n = 1` a wrap and an unwrap at the call site, where it is visible
+     * and cheap, rather than making `n = 12` twelve round trips, where it is neither.
+     *
+     * Keyed by line number rather than returned as a list, because the caller asked by number and
+     * will look up by number. Missing numbers are simply absent — asking for a line that is not
+     * there is not an error, it is an answer.
+     *
+     * @param string    $orderId 16-byte binary UUIDv7
+     * @param list<int> $lineIds numbers within that order; an empty list yields an empty map
+     *
+     * @return array<int, OrderLine> line number => line
      */
-    public function findById(string $id): ?OrderLine;
+    public function findByKeys(string $orderId, array $lineIds): array;
 
     /**
-     * Find one line by `(orderId, externalLineRef)` natural key.
+     * Lines of one order, by their source-system line references.
      *
-     * @param string           $orderId         16-byte binary UUIDv7
-     * @param non-empty-string $externalLineRef
+     * The `(order_id, external_line_ref)` natural key, in bulk for the reason above — the one
+     * caller of its singular ancestor read a line per refunded item inside a `foreach`.
+     *
+     * @param string       $orderId          16-byte binary UUIDv7
+     * @param list<string> $externalLineRefs an empty list yields an empty map
+     *
+     * @return array<string, OrderLine> external line ref => line
      */
-    public function findByExternalRef(string $orderId, string $externalLineRef): ?OrderLine;
+    public function findByExternalRefs(string $orderId, array $externalLineRefs): array;
 
     /**
-     * All lines for one order, ordered by surrogate id ascending (insertion order).
+     * All lines for one order, in line-number order — which is insertion order, because numbers
+     * are handed out by a counter that only moves forward.
+     *
+     * The ordering used to come from the surrogate being a UUIDv7 and therefore time-sortable.
+     * Now it is the key's own second member, so the order is stated by the query rather than
+     * inherited from how ids happened to be minted.
      *
      * @param string $orderId 16-byte binary UUIDv7
      *
@@ -40,12 +63,9 @@ interface OrderLineRepository
      */
     public function forOrder(string $orderId): array;
 
-    /**
-     * Insert or update one line.
-     *
-     * Same semantics as {@see OrderRepository::save()}.
-     */
-    public function save(OrderLine $line): OrderLine;
+    // A singular save() used to sit here. It went the same way as the singular reads, and for the
+    // same reason — its one caller wrote a line per correction inside a loop. Saving one line is
+    // saveAll() with one element.
 
     /**
      * Insert or update many lines in a single bulk operation (one INSERT for new rows, one
@@ -61,15 +81,38 @@ interface OrderLineRepository
      * Delete the given lines in a single bulk operation — never a per-line delete loop.
      *
      * For projection reconciliation: a line whose source line item no longer exists in the
-     * source system, and which carries no dispatch history (`qty_shipped`, `qty_corrected`
-     * and `qty_staged` all zero), is removed outright so the projection mirrors its source
-     * document. A line *with* history is never deleted — the caller zeroes its remainder
-     * instead, because shipped and corrected quantities are facts about work performed and
-     * survive the disappearance of the demand that caused them.
+     * source system, and which nothing else refers to, is removed outright so the projection
+     * mirrors its source document. A line *with* history is never deleted — the caller zeroes its
+     * remainder instead, because shipped and corrected quantities are facts about work performed
+     * and survive the disappearance of the demand that caused them.
      *
-     * @param list<OrderLine> $lines records with populated ids; an empty list is a no-op
+     * **Callers establish that with {@see referencedIds()}, not with the quantity counters.** The
+     * counters are derived and can fall back to zero while the history they summarised is still
+     * on file — a reinstated cancellation decrements `qty_corrected` and deliberately leaves the
+     * original processed correction behind. The database refuses such a delete regardless (the
+     * referring rows are RESTRICT), so a caller that skips the check gets an exception rather than
+     * silence; the check is how it avoids provoking one.
+     *
+     * @param list<OrderLine> $lines records with a populated key; an empty list is a no-op
      */
     public function deleteAll(array $lines): void;
+
+    /**
+     * Which of the given lines something still refers to, as a set of `(order, line)` keys.
+     *
+     * The honest form of "does this line carry history": it asks the referring tables rather than
+     * trusting a counter on the line to still summarise them. One bulk read per referring table,
+     * never a per-line probe.
+     *
+     * Keys are returned in the encoding {@see OrderLine::keyOf()} produces, because a line number
+     * is not unique on its own — a set keyed by number alone would report line 3 of one order as
+     * referenced because line 3 of another is.
+     *
+     * @param list<OrderLine> $lines records with a populated key; an empty list yields an empty set
+     *
+     * @return array<string, true> `OrderLine::keyOf()` => true, for lookup by key
+     */
+    public function referencedIds(array $lines): array;
 
     /**
      * Count the order lines for a subject that still have work outstanding

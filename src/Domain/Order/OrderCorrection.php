@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nandan108\InvFlux\Domain\Order;
 
 use Nandan108\Attrecord\Attribute\Column;
+use Nandan108\Attrecord\Attribute\ForeignKey;
 use Nandan108\Attrecord\Attribute\Index;
 use Nandan108\Attrecord\Attribute\LockTier;
 use Nandan108\Attrecord\Attribute\Relation;
@@ -35,6 +36,15 @@ use Nandan108\InvFlux\Util\Ulid;
  * @psalm-suppress PossiblyUnusedProperty Properties are hydrated by attrecord from row data.
  */
 #[Table(name: 'invflux_order_corrections')]
+// The corrected line, named by its whole key. `order_id` is already carried for the order
+// reference below, so the pair costs this table nothing beyond the number itself — and it makes
+// "a correction against a line of some other order" unrepresentable, where before only the line
+// was named and the order beside it was free to disagree with it.
+#[ForeignKey(
+    column: ['order_id', 'line_id'],
+    references: OrderLine::class,
+    onDelete: ForeignKeyAction::Restrict,
+)]
 #[LockTier(22)]
 final class OrderCorrection extends Record
 {
@@ -47,10 +57,20 @@ final class OrderCorrection extends Record
     #[Index('idx_order')]
     public ?string $order_id = null;
 
-    /** 16-byte binary UUIDv7 FK to invflux_order_lines.id. */
-    #[Column(ColumnType::Binary, length: 16)]
-    #[Index('idx_line')]
-    public ?string $line_id = null;
+    /**
+     * The corrected line's number within {@see $order_id} — the order's numbering, so the two
+     * columns together are the whole reference.
+     *
+     * Keeps the short name where {@see \Nandan108\InvFlux\Domain\Shipment\ShipmentLine} renamed
+     * its equivalent to `order_line_id`: that table has lines of its own for a bare `line_id` to
+     * be confused with, and a correction has none.
+     *
+     * `idx_line` is dropped with the widening — `(order_id, line_id)` is now served by the foreign
+     * key's own index, and an index on the number alone would group line 3 of every order in the
+     * store together, which answers no question anyone asks.
+     */
+    #[Column(ColumnType::SmallIntUnsigned)]
+    public int $line_id = 0;
 
     #[Column(ColumnType::TinyIntUnsigned)]
     public int $type_id = 0;
@@ -136,11 +156,26 @@ final class OrderCorrection extends Record
     )]
     public ?Order $order = null;
 
+    // Hydration only — the constraint itself is the multi-column #[ForeignKey] on the class, which
+    // a #[Relation] cannot express, so this carries `emitFk: false` rather than declaring a second
+    // one over a single column. attrecord refuses that single-column form outright now: naming one
+    // member of a two-column key references a *prefix*, which the engines disagree about three
+    // ways, so what used to be a silent near-miss is a startup error.
+    //
+    // RESTRICT there, unlike the order edge above. A correction is a settled monetary record — it
+    // names a refund that was issued — so the disappearance of the line it corrects must not take
+    // it with it. The projection reconciler deletes a line whose source item vanished, and the
+    // test it applies is the line's own counters; a reinstated cancellation leaves `qty_corrected`
+    // back at zero while both processed corrections survive, so those counters read "unreferenced"
+    // for a line two refunds point at. RESTRICT makes that a refusal instead of a silent loss.
+    //
+    // The order edge stays CASCADE: an order genuinely going away takes its whole projection, and
+    // nothing in the adapter deletes one — a host deletion *retires* the projection instead.
     #[Relation(
         RelationType::ManyToOne,
         class: OrderLine::class,
         foreignKey: 'line_id',
-        onDelete: ForeignKeyAction::Cascade,
+        emitFk: false,
     )]
     public ?OrderLine $line = null;
 
@@ -194,10 +229,10 @@ final class OrderCorrection extends Record
                 ['field' => 'order_id'],
             );
         }
-        if (null === $this->line_id || 16 !== \strlen($this->line_id)) {
+        if ($this->line_id <= 0) {
             throw new RecordValidationException(
-                'OrderCorrection.line_id must be a 16-byte binary UUIDv7 referencing invflux_order_lines.id.',
-                ['field' => 'line_id'],
+                'OrderCorrection.line_id must be a positive order-line number within order_id.',
+                ['field' => 'line_id', 'value' => $this->line_id],
             );
         }
         if ($this->type_id <= 0) {

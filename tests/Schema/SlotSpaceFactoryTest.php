@@ -62,7 +62,7 @@ final class SlotSpaceFactoryTest extends TestCase
         $deltas = $result->deltas();
         self::assertCount(1, $deltas, 'a write-in with no deficit produces a single create delta (atp)');
         self::assertSame(7, (int) $deltas[0]->delta, 'net +7 stock created');
-        self::assertSame(Stt::ATP.'.'.SlotSpaceFactory::DEFAULT_LOCATION_SEED, $deltas[0]->slot->key);
+        self::assertSame(SlotSpaceFactory::DEFAULT_LOCATION_SEED.'.'.Stt::ATP, $deltas[0]->slot->key);
     }
 
     /**
@@ -78,7 +78,55 @@ final class SlotSpaceFactoryTest extends TestCase
         $result = $engine->execute(new QuantityState($space), $space, SlotSpaceFactory::FLOW_WRITE_IN, 7, params: self::AT_LOC + [SlotSpaceFactory::PARAM_DEFICIT => 4]);
 
         self::assertTrue($result->isComplete());
-        self::assertSame(['ctd.oh' => 4, 'atp.oh' => 3], $this->byKey($result));
+        self::assertSame(['oh.ctd' => 4, 'oh.atp' => 3], $this->byKey($result));
+    }
+
+    /**
+     * A rising surface refills the states in claim order: `ctd`, then `res`, then `atp`. The middle
+     * band is what stops `atp` overstating availability — without it, units a live checkout is
+     * holding would be offered to other shoppers the moment stock came back.
+     */
+    public function testWriteInFlowRefillsTheReservedBandBeforeAvailability(): void
+    {
+        $space = $this->commercialSpace();
+        $engine = new MovementEngine();
+
+        // 7 received against a 4-unit backorder and a 2-unit unbacked hold → 4 ctd, 2 res, 1 atp.
+        $result = $engine->execute(
+            new QuantityState($space),
+            $space,
+            SlotSpaceFactory::FLOW_WRITE_IN,
+            7,
+            params: self::AT_LOC + [
+                SlotSpaceFactory::PARAM_DEFICIT          => 4,
+                SlotSpaceFactory::PARAM_RESERVED_DEFICIT => 2,
+            ],
+        );
+
+        self::assertTrue($result->isComplete());
+        self::assertSame(['oh.ctd' => 4, 'oh.res' => 2, 'oh.atp' => 1], $this->byKey($result));
+    }
+
+    /**
+     * Each cap is independent: a caller that tracks commitments but not reservations supplies one
+     * param, and the band it says nothing about takes nothing. **Absent ⇒ 0** is what keeps the
+     * cascade collapsing to the plain `nil → atp` receipt it has always been.
+     */
+    public function testWriteInFlowSkipsTheReservedBandWhenNoReservationIsClaimed(): void
+    {
+        $space = $this->commercialSpace();
+        $engine = new MovementEngine();
+
+        $result = $engine->execute(
+            new QuantityState($space),
+            $space,
+            SlotSpaceFactory::FLOW_WRITE_IN,
+            7,
+            params: self::AT_LOC + [SlotSpaceFactory::PARAM_RESERVED_DEFICIT => 3],
+        );
+
+        self::assertTrue($result->isComplete());
+        self::assertSame(['oh.res' => 3, 'oh.atp' => 4], $this->byKey($result), 'the res band fills without a ctd deficit');
     }
 
     /** A deficit ≥ the received quantity sends everything to ctd (nothing promisable yet). */
@@ -90,7 +138,7 @@ final class SlotSpaceFactoryTest extends TestCase
         $result = $engine->execute(new QuantityState($space), $space, SlotSpaceFactory::FLOW_WRITE_IN, 5, params: self::AT_LOC + [SlotSpaceFactory::PARAM_DEFICIT => 10]);
 
         self::assertTrue($result->isComplete());
-        self::assertSame(['ctd.oh' => 5], $this->byKey($result), 'all 5 back the deficit; none spill to atp');
+        self::assertSame(['oh.ctd' => 5], $this->byKey($result), 'all 5 back the deficit; none spill to atp');
     }
 
     /**
@@ -112,7 +160,7 @@ final class SlotSpaceFactoryTest extends TestCase
         $result = $engine->execute($state, $space, SlotSpaceFactory::FLOW_WRITE_OFF, 10, params: self::AT_LOC);
 
         self::assertTrue($result->isComplete());
-        self::assertSame(['atp.oh' => -5, 'res.oh' => -3, 'ctd.oh' => -2], $this->byKey($result));
+        self::assertSame(['oh.atp' => -5, 'oh.res' => -3, 'oh.ctd' => -2], $this->byKey($result));
     }
 
     /** A write-off within free stock never touches res/ctd (no commitment breach). */
@@ -130,7 +178,7 @@ final class SlotSpaceFactoryTest extends TestCase
         $result = $engine->execute($state, $space, SlotSpaceFactory::FLOW_WRITE_OFF, 4, params: self::AT_LOC);
 
         self::assertTrue($result->isComplete());
-        self::assertSame(['atp.oh' => -4], $this->byKey($result), 'drawn from atp only; ctd untouched');
+        self::assertSame(['oh.atp' => -4], $this->byKey($result), 'drawn from atp only; ctd untouched');
     }
 
     /**
@@ -173,7 +221,7 @@ final class SlotSpaceFactoryTest extends TestCase
             );
 
             self::assertTrue($result->isComplete());
-            self::assertSame([Stt::ATP.'.'.$loc => 3], $this->byKey($result));
+            self::assertSame([$loc.'.'.Stt::ATP => 3], $this->byKey($result));
         }
     }
 

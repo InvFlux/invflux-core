@@ -131,6 +131,30 @@ interface SchemaManager
     public function setDimensionDefault(string $dimensionName, string $valueCode): void;
 
     /**
+     * The stored id of one dimension value, named by its dimension and its code.
+     *
+     * Exists because a dimension value is addressed two ways and the two do not meet anywhere
+     * else. Slots, flows and every caller that routes stock name a value by its **code** — `oh`,
+     * `oh/main` — which is what makes a rename a metadata operation and what
+     * {@see \Nandan108\InvFlux\Schema\SlotDefaultResolver} hands back. A domain row that
+     * *references* a value instead holds its **id**, because a foreign key is the only thing that
+     * stops a value being dropped out from under the rows denominated in it. The first such
+     * reference is `SubjectCost.cost_area_id`; before it there was nothing to bridge, which is
+     * why this port arrives with it rather than earlier.
+     *
+     * **Loud on a miss, by the same argument as the slot-default resolver**: an unknown value
+     * means the caller believes in a location the install does not have, and a row written
+     * against a guessed area is a valuation nobody can trace. Refusing costs one failed
+     * operation; guessing costs a wrong number that looks right.
+     *
+     * @param non-empty-string $dimensionName
+     * @param non-empty-string $valueCode
+     *
+     * @throws \Nandan108\InvFlux\Exceptions\SchemaException when the dimension or the value is unknown
+     */
+    public function dimensionValueId(string $dimensionName, string $valueCode): int;
+
+    /**
      * Move all quantities out of one dimension value, then disable it.
      *
      * @param non-empty-string      $dimensionName

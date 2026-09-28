@@ -1724,8 +1724,7 @@ Indexes: `uniq_slot_key`, `idx_active_slot`, `idx_layer_slot`.
 | kind | ENUM('aggregate','unit','batch') DEFAULT 'unit' | |
 | product_id | BIGINT UNSIGNED NULL | FK self CASCADE; root self-reference |
 | variant_id | BIGINT UNSIGNED NULL | FK self CASCADE |
-| reorder_threshold | SMALLINT UNSIGNED NULL | |
-| reorder_threshold_source | ENUM('manual','rop_calculated') NULL | |
+| reorder_threshold | SMALLINT UNSIGNED NULL | Low stock threshold, mirroring the host's own field where the host has one; the host stays authoritative. A *derived* reorder point belongs in its own column. |
 | stock_managed | TINYINT(1) DEFAULT 1 | |
 | created_at | DATETIME(6) | |
 

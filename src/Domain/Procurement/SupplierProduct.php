@@ -7,9 +7,9 @@ namespace Nandan108\InvFlux\Domain\Procurement;
 use Nandan108\Attrecord\Attribute\Column;
 use Nandan108\Attrecord\Attribute\Index;
 use Nandan108\Attrecord\Attribute\LockTier;
+use Nandan108\Attrecord\Attribute\PrimaryKey;
 use Nandan108\Attrecord\Attribute\Relation;
 use Nandan108\Attrecord\Attribute\Table;
-use Nandan108\Attrecord\Attribute\UniqueKey;
 use Nandan108\Attrecord\Enum\ColumnType;
 use Nandan108\Attrecord\Enum\ForeignKeyAction;
 use Nandan108\Attrecord\Enum\RelationType;
@@ -32,14 +32,24 @@ use Nandan108\InvFlux\Domain\Subject\Subject;
  * @psalm-suppress PossiblyUnusedProperty Properties are hydrated by attrecord from row data.
  */
 #[Table(name: 'invflux_supplier_products')]
+#[PrimaryKey(columns: ['supplier_id', 'subject_id'])]
 #[LockTier(31)]
-#[UniqueKey('uq_supplier_subject', columns: ['supplier_id', 'subject_id'])]
 #[Index('idx_subject', columns: ['subject_id'])]
 final class SupplierProduct extends Record
 {
-    #[Column(ColumnType::IntUnsigned, autoIncrement: true)]
-    public ?int $id = null;
-
+    /**
+     * The row *is* the pair: one supplier's terms for one subject, and a second row for the same
+     * pair would be two prices for one relationship. Addressed as
+     * `getOne(['supplier_id' => …, 'subject_id' => …])`.
+     *
+     * `idx_subject` stays because the key's leading member is `supplier_id`, so a lookup by
+     * subject alone — "who supplies this?" — cannot use the primary key.
+     *
+     * Both members are non-nullable with a 0 default, matching the NOT NULL columns and every
+     * consumer that types them `int`. The cost is that an unassigned member reads as 0 rather
+     * than as absent, so attrecord's incomplete-key guard on `delete()` cannot fire here;
+     * {@see validate()} rejects a non-positive member before any write instead.
+     */
     #[Column(ColumnType::IntUnsigned)]
     public int $supplier_id = 0;
 

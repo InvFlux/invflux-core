@@ -62,6 +62,19 @@ final class BaseMovementType
     public const HOST_EDIT_RELEASE = 'host_edit_release';
 
     /**
+     * The mirror of {@see HOST_EDIT_RELEASE}: the host's own document *raised* its demand, so the
+     * commitment grows to match. Physically a recovered book (`atp → ctd`), under its own code for
+     * the same reason the release has one — "the host's document asked for more" is a different why
+     * than "an order was recovered from cancellation", and a report that merges them answers
+     * neither.
+     *
+     * Capped at what `atp` actually holds. A document may ask for more than exists, and the mirror
+     * of the quantity stands regardless: the shortfall is then real demand the order cannot cover,
+     * which is a deficit to surface rather than a movement to invent.
+     */
+    public const HOST_EDIT_BOOK = 'host_edit_book';
+
+    /**
      * Commitment released because the host deleted the order outright. Not a correction and not a
      * cancellation: a deletion leaves no order to refund against, so it must not share a code with
      * the restocks that imply one.
@@ -101,6 +114,7 @@ final class BaseMovementType
             new MovementTypeDefinition(self::CORRECTION_WRITEOFF_CTD, 'Correction write-off (ctd → nil)'),
             new MovementTypeDefinition(self::CORRECTION_RESTOCK_CREATE, 'Foreign-refund restock create (nil → atp, post-dispatch)'),
             new MovementTypeDefinition(self::HOST_EDIT_RELEASE, 'Host order edit release (ctd → atp)'),
+            new MovementTypeDefinition(self::HOST_EDIT_BOOK, 'Host order edit book (atp → ctd)'),
             new MovementTypeDefinition(self::HOST_DELETE_RELEASE, 'Host order deletion release (ctd → atp)'),
             new MovementTypeDefinition(self::REFUND_RESTOCK, 'Refund restock (ctd → atp)'),
             new MovementTypeDefinition(self::CANCEL_RESTOCK, 'Cancel-of-paid restock (ctd → atp)'),

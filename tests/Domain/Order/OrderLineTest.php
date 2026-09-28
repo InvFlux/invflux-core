@@ -107,6 +107,7 @@ final class OrderLineTest extends TestCase
     {
         return [
             'order_id'          => self::ORDER_UUID,
+            'line_id'           => 2,
             'external_line_ref' => '456',
             'subject_id'        => 789,
             'name'              => 'Widget',

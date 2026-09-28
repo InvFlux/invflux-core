@@ -62,6 +62,24 @@ final class Order extends Record
     // through `invflux_subject_stock_concerns` and aggregate with
     // `COALESCE(BIT_OR(c.bits), 0)`.
 
+    /**
+     * The next number {@see OrderLine::$line_id} will take on this order — the line allocator.
+     *
+     * **A high-water mark, not a count.** It only ever goes up, so a number belonging to a line
+     * that has since been pruned is never handed out again. `MAX(line_id) + 1` would be one column
+     * cheaper and wrong in a way nothing would report: prune the last line, add another, and a
+     * client still holding the old number addresses a different product. Two bytes buys that away.
+     *
+     * Distinct from {@see $line_count} for the same reason — that falls when a line is pruned and
+     * this does not, so they part company on the first removal and neither can stand in for the
+     * other.
+     *
+     * Starts at 1, so 0 is never a valid line number and an unallocated `line_id` is recognisable
+     * as the zero-default it is.
+     */
+    #[Column(ColumnType::SmallIntUnsigned, default: 1)]
+    public int $next_line_no = 1;
+
     #[Column(ColumnType::SmallIntUnsigned, default: 0)]
     public int $line_count = 0;
 

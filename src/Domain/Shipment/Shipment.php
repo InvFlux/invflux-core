@@ -9,6 +9,7 @@ use Nandan108\Attrecord\Attribute\Index;
 use Nandan108\Attrecord\Attribute\LockTier;
 use Nandan108\Attrecord\Attribute\Relation;
 use Nandan108\Attrecord\Attribute\Table;
+use Nandan108\Attrecord\Attribute\UniqueKey;
 use Nandan108\Attrecord\Caster\EnumCaster;
 use Nandan108\Attrecord\Enum\ColumnType;
 use Nandan108\Attrecord\Enum\ForeignKeyAction;
@@ -46,6 +47,12 @@ use Nandan108\InvFlux\Identity\RecordIdentity;
  * @psalm-suppress PossiblyUnusedProperty Properties are hydrated by attrecord from row data.
  */
 #[Table(name: 'invflux_shipments')]
+// Redundant by itself — `id` is already unique, so this constrains nothing new. It exists to be a
+// foreign-key *target*: {@see ShipmentLine} carries both `shipment_id` and `order_id`, and without
+// a key over the pair nothing makes the two agree, so a shipment line could name a shipment for
+// one order and an order line from another. Pairing them against this turns that from a rule a
+// writer has to remember into one the database keeps.
+#[UniqueKey('uniq_id_order', columns: ['id', 'order_id'])]
 #[LockTier(24)]
 final class Shipment extends Record
 {

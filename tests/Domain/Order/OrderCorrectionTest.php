@@ -14,9 +14,6 @@ final class OrderCorrectionTest extends TestCase
     /** 16-byte order UUID fixture (same value for every test). */
     private const ORDER_UUID = "\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f\x10";
 
-    /** 16-byte line UUID fixture. */
-    private const LINE_UUID = "\x10\x0f\x0e\x0d\x0c\x0b\x0a\x09\x08\x07\x06\x05\x04\x03\x02\x01";
-
     public function testValidCorrectionConstructs(): void
     {
         $correction = (new OrderCorrection())->set($this->validAttrs());
@@ -50,9 +47,9 @@ final class OrderCorrectionTest extends TestCase
     public function testInvalidLineIdRejected(): void
     {
         $this->expectException(RecordValidationException::class);
-        $this->expectExceptionMessage('line_id must be a 16-byte binary UUIDv7');
+        $this->expectExceptionMessage('line_id must be a positive order-line number');
 
-        (new OrderCorrection())->set([...$this->validAttrs(), 'line_id' => null]);
+        (new OrderCorrection())->set([...$this->validAttrs(), 'line_id' => 0]);
     }
 
     public function testInvalidTypeIdRejected(): void
@@ -108,7 +105,7 @@ final class OrderCorrectionTest extends TestCase
     {
         return [
             'order_id'      => self::ORDER_UUID,
-            'line_id'       => self::LINE_UUID,
+            'line_id'       => 4,
             'type_id'       => 3,
             'reason_id'     => 5,
             'qty'           => 2,

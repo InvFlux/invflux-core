@@ -60,8 +60,25 @@ final class PurchaseOrderLine extends Record
     #[Index('idx_subject')]
     public int $subject_id = 0;
 
-    #[Column(ColumnType::IntUnsigned)]
-    public int $qty_requested = 0;
+    /**
+     * How many units this line orders. **Null = inherit the computed replenishment suggestion until
+     * the order is issued** — the same contract {@see $unit_cost} carries for price, and for the same
+     * reason: a draft shows a figure the merchant has not committed to, and it should keep tracking
+     * its inputs until they do.
+     *
+     * The two inheritances differ in one way that matters to every reader of this column. A price
+     * inherits a *stored scalar* the supplier catalogue holds, so it moves only when someone edits
+     * the catalogue. A quantity inherits a *computation over live stock* — available, on-order, the
+     * low-stock threshold — so it moves with every sale and every other order. That is why the figure
+     * must be materialised into this column the moment the document becomes an external commitment:
+     * a quantity a supplier has been told is a promise, and a promise that keeps recomputing is not
+     * one.
+     *
+     * Treat null as "no quantity chosen yet", never as zero — {@see orderedQty()} is what resolves it
+     * for arithmetic, and `qty_open` COALESCEs it so an inheriting line reads 0 open rather than NULL.
+     */
+    #[Column(ColumnType::IntUnsigned, nullable: true)]
+    public ?int $qty_requested = null;
 
     /**
      * What the supplier *confirmed* they'd ship (from an ASN / email / order confirmation) — the
@@ -127,6 +144,13 @@ final class PurchaseOrderLine extends Record
      * (`qty_received`) and what was written off short (`qty_closed_short`), so a closed-short line
      * resolves to 0 open without touching `qty_requested`.
      *
+     * `qty_requested` is COALESCEd because it is nullable while a draft line still inherits its
+     * quantity. Without it the whole expression evaluates to NULL, which no reader is shaped for:
+     * this property is a non-nullable `int`, so a draft line would fail to hydrate, and every
+     * `qty_open > 0` predicate would go three-valued. An inheriting line reads 0 open, which is both
+     * true and uninteresting — a draft is not open for inbound, so nothing consults it until the
+     * quantity has been materialised at issue.
+     *
      * The operands are CAST to SIGNED before subtracting: all three columns are `INT UNSIGNED`, so a
      * legitimate over-receipt (`qty_received > qty_requested` — supplier over-ships) would underflow
      * unsigned arithmetic. `GREATEST(0, …)` clamps the *result* at read time, but the intermediate
@@ -137,7 +161,7 @@ final class PurchaseOrderLine extends Record
      */
     #[Column(
         ColumnType::IntUnsigned,
-        generatedAs: 'GREATEST(0, CAST(qty_requested AS SIGNED) - CAST(qty_received AS SIGNED) - CAST(qty_closed_short AS SIGNED))',
+        generatedAs: 'GREATEST(0, CAST(COALESCE(qty_requested, 0) AS SIGNED) - CAST(qty_received AS SIGNED) - CAST(qty_closed_short AS SIGNED))',
         generatedMode: GeneratedColumnMode::Virtual,
     )]
     public int $qty_open = 0;
@@ -226,14 +250,30 @@ final class PurchaseOrderLine extends Record
     public ?Subject $subject = null;
 
     /**
-     * The supplier-confirmed **expected** quantity, falling back to what was ordered (`qty_requested`)
-     * when no OA/ASN has been recorded. Equivalently {@see VarianceLens::Expected}'s baseline; kept as a
-     * named accessor because it is the common case. `qty_invoiced` is a separate billing / 3-way-match
-     * axis (Pro) and is deliberately not used here.
+     * What this line orders, as a number every caller can do arithmetic on: {@see $qty_requested},
+     * or 0 while it still inherits.
+     *
+     * Zero is the resolution rather than an error because the callers are the variance accessors
+     * below, and variance is a question about a document that has been sent. A line that still
+     * inherits belongs to a draft, where nothing has been ordered yet and nothing has arrived — so
+     * every variance it can be asked for is 0, which is what a 0 baseline yields. A caller that needs
+     * to *distinguish* "orders nothing" from "has not chosen" reads the column, which is why it stays
+     * nullable rather than defaulting.
+     */
+    public function orderedQty(): int
+    {
+        return $this->qty_requested ?? 0;
+    }
+
+    /**
+     * The supplier-confirmed **expected** quantity, falling back to what was ordered
+     * ({@see orderedQty()}) when no OA/ASN has been recorded. Equivalently {@see VarianceLens::Expected}'s
+     * baseline; kept as a named accessor because it is the common case. `qty_invoiced` is a separate
+     * billing / 3-way-match axis (Pro) and is deliberately not used here.
      */
     public function expectedQty(): int
     {
-        return $this->qty_expected ?? $this->qty_requested;
+        return $this->qty_expected ?? $this->orderedQty();
     }
 
     /**
@@ -267,7 +307,7 @@ final class PurchaseOrderLine extends Record
     /** The baseline quantity for a given delivery-variance {@see VarianceLens}. */
     public function baselineQty(VarianceLens $lens): int
     {
-        return VarianceLens::Ordered === $lens ? $this->qty_requested : $this->expectedQty();
+        return VarianceLens::Ordered === $lens ? $this->orderedQty() : $this->expectedQty();
     }
 
     /**
@@ -296,7 +336,7 @@ final class PurchaseOrderLine extends Record
      */
     public function confirmationVarianceQty(): int
     {
-        return $this->expectedQty() - $this->qty_requested;
+        return $this->expectedQty() - $this->orderedQty();
     }
 
     /**
@@ -306,7 +346,7 @@ final class PurchaseOrderLine extends Record
      */
     public function confirmationStatus(): VarianceStatus
     {
-        return VarianceStatus::classify($this->qty_requested, $this->expectedQty(), true);
+        return VarianceStatus::classify($this->orderedQty(), $this->expectedQty(), true);
     }
 
     #[\Override]

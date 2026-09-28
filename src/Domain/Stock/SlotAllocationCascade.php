@@ -23,8 +23,11 @@ namespace Nandan108\InvFlux\Domain\Stock;
  *   (least- to most-committed) — only bites into carts, then committed orders, once the loss
  *   exceeds free stock. Floors at 0 per slot.
  * - **Fill** (found / recount-up / returned goods, a positive on-hand delta): fill the `ctd`
- *   deficit first (up to `soldQty`, restoring fulfillability), then the `res` deficit, then
- *   overflow to `atp`. With no deficit it all lands on `atp`.
+ *   deficit first (up to `soldQty`, restoring fulfillability), then the `res` deficit (up to
+ *   `reservedQty`, re-backing live checkouts), then overflow to `atp`. With neither in deficit it all
+ *   lands on `atp`. Skipping the `res` band would leave `atp` **overstating availability** by the
+ *   unbacked quantity — those units would be offered to other shoppers while a live cart holds them —
+ *   so it is an availability error, not merely a hold that converts short later.
  * - **Release from `ctd`** (a cancellation freed committed units whose demand is gone): only the
  *   surplus above the remaining demand may move to `atp`; in deficit nothing moves (the
  *   cancellation just shrinks the deficit — `atp` stays 0, invariant held).
@@ -36,12 +39,20 @@ final class SlotAllocationCascade
     /**
      * Allocate a **total on-hand** delta across the commercial slots (`atp` / `res` / `ctd`).
      *
+     * **The two demand targets must partition the demand, not overlap it.** `soldQty` is the demand of
+     * orders that have *committed*; `reservedQty` is the quantity live checkouts are *holding*. An
+     * order belongs to exactly one of them, so counting a reserved order in both makes the targets sum
+     * to more than the real demand — the fill then withholds from `atp` quantity nobody claims, which
+     * is the same availability error as skipping the `res` band, in the opposite direction. Passing the
+     * *current* `res` as `reservedQty` is the other way to get this wrong: it reads as "the band is
+     * already full" and disables the step.
+     *
      * @param int $delta       requested total on-hand change (may exceed what's achievable)
      * @param int $atp         current for-sale quantity
      * @param int $res         current reserved (in-checkout) quantity
      * @param int $ctd         current committed (sold-not-dispatched) quantity
-     * @param int $soldQty     outstanding committed demand the `ctd` slot should cover (deficit target)
-     * @param int $reservedQty reservation demand the `res` slot should cover (deficit target)
+     * @param int $soldQty     outstanding demand of *committed* orders, which `ctd` should cover (deficit target)
+     * @param int $reservedQty quantity held by *live reservations*, which `res` should cover (deficit target)
      *
      * @return array{atp: int, res: int, ctd: int} per-slot deltas (sum = achievable portion of $delta)
      */

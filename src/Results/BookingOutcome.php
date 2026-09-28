@@ -12,6 +12,24 @@ namespace Nandan108\InvFlux\Results;
 enum BookingOutcome: string
 {
     case BOOKED_RESERVED = 'booked_reserved';
+    /**
+     * An order booking its **own** reservation found fewer units in it than it reserved.
+     *
+     * A tentative hold reserves *quantity*, and quantity can be drawn away from underneath it while
+     * the hold stands: a write-off cascades `atp → res → ctd`, and a document raising what another
+     * order owes commits out of `res` once free stock is gone. So the reservation record can be live
+     * and its units already spent.
+     *
+     * This exists because the alternative is silent. The booking flow reports success having moved
+     * nothing — a transaction committed with zero rows — and the order then reads as committed while
+     * holding no unit at all, surfacing only at dispatch as an order with nothing to ship.
+     *
+     * Distinct from {@see BOOKED_RECOVERED_PARTIAL} because the customer's situation is different
+     * and they are told so: a partial *recovery* follows a reservation that **expired**, whereas
+     * this customer's reservation never lapsed. Telling them their reservation expired would be
+     * false.
+     */
+    case BOOKED_RESERVED_PARTIAL = 'booked_reserved_partial';
     case BOOKED_RECOVERED = 'booked_recovered';
     /**
      * Late-payment recovery captured stock for at least one order line but not all of them.

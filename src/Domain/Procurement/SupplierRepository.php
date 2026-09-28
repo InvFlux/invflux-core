@@ -80,6 +80,15 @@ interface SupplierRepository
     public function deleteSupplierProduct(SupplierProduct $link): void;
 
     /**
+     * The catalogue link for one (supplier, subject) pair, or null.
+     *
+     * That pair is the row's whole identity, so this is a keyed read rather than a search, and
+     * the supplier scoping is structural: a subject linked to another supplier is a different
+     * row, not a row to be filtered out.
+     */
+    public function findSupplierProduct(int $supplierId, int $subjectId): ?SupplierProduct;
+
+    /**
      * All supplier-product links for one supplier.
      *
      * @return list<SupplierProduct>

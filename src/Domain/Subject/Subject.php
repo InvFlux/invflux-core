@@ -6,6 +6,7 @@ namespace Nandan108\InvFlux\Domain\Subject;
 
 use Nandan108\Attrecord\Attribute\Check;
 use Nandan108\Attrecord\Attribute\Column;
+use Nandan108\Attrecord\Attribute\ForeignKey;
 use Nandan108\Attrecord\Attribute\Index;
 use Nandan108\Attrecord\Attribute\Relation;
 use Nandan108\Attrecord\Attribute\Table;
@@ -58,6 +59,20 @@ use Nandan108\Attrecord\Record;
 #[Check('tracking_unit_only', "kind = 'unit' OR tracking = 'none'")]
 #[Check('batch_has_parent', "kind <> 'batch' OR parent_id IS NOT NULL")]
 #[Check('aggregate_is_root', "kind <> 'aggregate' OR parent_id IS NULL")]
+// Costing at batch grain needs somewhere to put a layer, and that somewhere is a `Batch` child,
+// which only a tracked subject has. Same defence-in-depth as the rules above, and answerable from
+// one row because both columns are on it.
+#[Check('cost_grain_needs_tracking', "cost_grain = 'unit' OR tracking <> 'none'")]
+// The document line a `Batch` subject was born from. Referenced by table name rather than by class:
+// `invflux_ref_types` has no Record — it is raw DDL reachable only as a private constant in the
+// MySQL store — so a class reference has nothing to resolve. RESTRICT because a ref type some
+// subject still cites is not an orphan.
+#[ForeignKey(
+    column: 'source_ref_type_id',
+    references: 'invflux_ref_types',
+    onDelete: ForeignKeyAction::Restrict,
+    onUpdate: ForeignKeyAction::Restrict,
+)]
 final class Subject extends Record
 {
     #[Column(ColumnType::IntUnsigned, autoIncrement: true)]
@@ -86,19 +101,87 @@ final class Subject extends Record
     #[EnumCaster(SubjectTracking::class)]
     public SubjectTracking $tracking = SubjectTracking::None;
 
+    /**
+     * Which subject a cost layer hangs off (see {@see CostGrain}) — the unit itself, or its
+     * `Batch` children. `Batch` is legal only where {@see $tracking} is anything but `None`, since
+     * an untracked subject has no children to hold a layer.
+     *
+     * Orthogonal to `tracking` despite that dependency: lot identity is a physical fact and cost
+     * grain a financial one, so a lot-tracked subject on a single rolling average is an ordinary
+     * arrangement rather than a contradiction.
+     *
+     * Substrate only — **unused at Essentials v1.0**, where weighted average cost makes the grain
+     * unobservable and every row is `Unit`. Added now because a column is cheapest to introduce
+     * before there is data.
+     */
+    #[Column(ColumnType::Enum, default: CostGrain::Unit)]
+    #[EnumCaster(CostGrain::class)]
+    public CostGrain $cost_grain = CostGrain::Unit;
+
+    /**
+     * The document line a `Batch` subject was born from — which receipt line, or which build
+     * order, brought this lot into existence. Null on every other kind, and on batches predating
+     * the anchor.
+     *
+     * Stored as the (ref type, ref id) pair the ledger already uses for movement provenance rather
+     * than as a typed FK per document kind, so a new document type that can mint a batch needs a
+     * `ref_types` row and no schema change here.
+     */
+    #[Column(ColumnType::SmallIntUnsigned, nullable: true)]
+    public ?int $source_ref_type_id = null;
+
+    /** The referenced row's id, read against {@see $source_ref_type_id}. */
+    #[Column(ColumnType::BigIntUnsigned, nullable: true)]
+    public ?int $source_ref_id = null;
+
     #[Column(ColumnType::IntUnsigned, nullable: true)]
     public ?int $product_id = null;
 
     #[Column(ColumnType::IntUnsigned, nullable: true)]
     public ?int $variant_id = null;
 
-    #[Column(ColumnType::SmallIntUnsigned, nullable: true)]
-    public ?int $reorder_threshold = null;
+    /**
+     * Low stock threshold, mirroring the host's own field where the host has one.
+     *
+     * Host-owned wherever a host owns it: an adapter whose platform carries this concept (for
+     * WooCommerce, `_low_stock_amount`) mirrors that value here rather than keeping a competing
+     * one, and the platform stays authoritative for it. So this column carries no provenance flag —
+     * there is one source of truth, and a second opinion about who set it would only be a way to
+     * disagree with it.
+     *
+     * A *derived* reorder point belongs in its own column, never written back into this one: the
+     * merchant's threshold is an input to that calculation (the fallback when there is too little
+     * data to compute one), and collapsing the two would overwrite the input with the output.
+     *
+     * `renamedFrom` makes convergence emit a data-preserving `RENAME COLUMN` rather than the
+     * drop-and-add a differ otherwise plans when a column appears under a new name. It is a
+     * migration instruction rather than a permanent record, so it may be removed once every
+     * database that could hold the old name has converged.
+     */
+    #[Column(ColumnType::SmallIntUnsigned, nullable: true, renamedFrom: 'reorder_threshold')]
+    public ?int $low_stock_amount = null;
 
-    /** Source of reorder_threshold (see {@see ReorderThresholdSource}). ENUM value list derived from the caster's enum. */
-    #[Column(ColumnType::Enum, nullable: true)]
-    #[EnumCaster(ReorderThresholdSource::class)]
-    public ?ReorderThresholdSource $reorder_threshold_source = null;
+    /**
+     * The level a restock order fills up to — the other end of the cycle {@see $low_stock_amount}
+     * starts. The threshold says *when* to order, this says *how much to end up with*, and a
+     * suggestion is the gap between this and what is already here or on its way.
+     *
+     * **Null inherits** a multiple of the threshold, which is what the two ends of the cycle are
+     * related by when a merchant has not said otherwise. Stored separately rather than always
+     * derived, because the ratio is one setting for the whole store: without this column a merchant
+     * can pick any fill level they like by choosing the threshold, but cannot then choose
+     * independently when they are warned — wanting a lot on the shelf forces an early warning, and
+     * the two are not the same question.
+     *
+     * **Ours, not the host's.** Unlike the threshold, which mirrors WooCommerce's `_low_stock_amount`
+     * and leaves the platform authoritative, no host field means this, so nothing is being shadowed.
+     *
+     * Not to be confused with a supplier's minimum order quantity, which lives on the supplier
+     * catalogue line and is a floor on *an order*; this is a floor on *the resulting position*, and
+     * it is the difference that decides whether stock already inbound is subtracted.
+     */
+    #[Column(ColumnType::SmallIntUnsigned, nullable: true)]
+    public ?int $reorder_target = null;
 
     /**
      * Whether **InvFlux governs** this subject's stock — i.e. InvFlux is the single authority that
@@ -174,7 +257,7 @@ final class Subject extends Record
     #[\Override]
     public function validate(): void
     {
-        // $kind / $reorder_threshold_source are enum-typed (EnumCaster) — the type system
-        // guarantees valid values, so no runtime membership check is needed.
+        // $kind is enum-typed (EnumCaster) — the type system guarantees a valid value, so no
+        // runtime membership check is needed.
     }
 }

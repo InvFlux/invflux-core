@@ -59,6 +59,7 @@ final class SlotSpaceFactory
     public const PARAM_LOCATION = 'location';
     public const PARAM_SLOT = 'slot';
     public const PARAM_DEFICIT = 'deficit';
+    public const PARAM_RESERVED_DEFICIT = 'reserved_deficit';
 
     private const AT_LOCATION = '{'.self::PARAM_LOCATION.'}';
     private const ANY_SLOT = '{'.self::PARAM_SLOT.'}';
@@ -86,21 +87,37 @@ final class SlotSpaceFactory
             // further states (sup.*, pnd, qi, bkd) the same way. `Stt` only *names* the native set;
             // it does not close the dimension. Flat values → the `root()` selector (parent_id IS
             // NULL) admits them all.
-            DimensionDefinition::sharedRef('stt', position: 0, valueSelector: DimensionValueSelector::root()),
+            // `position` fixes where a dimension lands in the serialized slot key, so `loc` first
+            // spells a slot `oh.atp` — place, then what the stock there is promisable for. That is
+            // the order the whole codebase already reads in prose and in movement labels, and the
+            // order the model is built in: the physical fact is the one that exists independently,
+            // and the commercial state is an assertion made about it.
+            //
             // The commercial layer addresses stock at a coarse grain, and that grain spans two
             // kinds of place: warehouses, and the locations that are not warehouses and never will
             // be — supplier-side stock, transit legs, a customer holding goods within a return
             // window. Both are selected; neither is mislabelled as the other. Contributed values
             // carry `external`, so a base install still selects exactly one warehouse.
-            DimensionDefinition::sharedRef('loc', position: 1, valueSelector: DimensionValueSelector::levels(
+            DimensionDefinition::sharedRef('loc', position: 0, valueSelector: DimensionValueSelector::levels(
                 self::LEVEL_WAREHOUSE,
                 SharedDimensionValues::LEVEL_EXTERNAL,
             )),
+            // `stt` is a shared (DB-backed) dimension exactly like `loc`: its native values
+            // (atp/res/ctd) are seeded at bootstrap via addDimensionValues(), and add-ons register
+            // further states (sup.*, pnd, qi, bkd) the same way. `Stt` only *names* the native set;
+            // it does not close the dimension. Flat values → the `root()` selector (parent_id IS
+            // NULL) admits them all.
+            DimensionDefinition::sharedRef('stt', position: 1, valueSelector: DimensionValueSelector::root()),
         ])
             ->withFlow(FlowDefinition::define('reserve')->move(['stt' => Stt::ATP], ['stt' => Stt::RES]))
             ->withFlow(FlowDefinition::define('release')->move(['stt' => Stt::RES], ['stt' => Stt::ATP]))
             ->withFlow(FlowDefinition::define('book_reserved')->move(['stt' => Stt::RES], ['stt' => Stt::CTD]))
+            // These two look like they should be the same flow and **deliberately are not**. Both
+            // commit demand for an order holding no reservation of its own; they differ in whether
+            // they may revoke somebody else's tentative hold to do it. See
+            // {@see bookDemandGrowthFlow()} for the reasoning — do not unify them.
             ->withFlow(FlowDefinition::define('book_recovered')->move(['stt' => Stt::ATP], ['stt' => Stt::CTD]))
+            ->withFlow(self::bookDemandGrowthFlow())
             ->withFlow(FlowDefinition::define('clear_ctd')->destroy(['stt' => Stt::CTD]))
             ->withFlow(FlowDefinition::define('correction_restock')->move(['stt' => Stt::CTD], ['stt' => Stt::ATP]))
             ->withFlow(FlowDefinition::define('correction_writeoff_ctd')->destroy(['stt' => Stt::CTD]))
@@ -114,20 +131,34 @@ final class SlotSpaceFactory
             // (Domain\Stock\SlotAllocationCascade), so returned physical stock backs committed orders
             // before it can become sellable (maintains "ctd deficit ⇒ atp = res = 0").
             ->withFlow(FlowDefinition::define('correction_restock_create_ctd')->create(['stt' => Stt::CTD]))
+            // Post-dispatch return restock into `res` — the same fill, one band up: with commitments
+            // whole but a live checkout's hold unbacked, the returned units back that hold rather than
+            // going on sale under it. Without this leg the fill jumps from `ctd` to `atp` and `atp`
+            // overstates availability by the unbacked band.
+            ->withFlow(FlowDefinition::define('correction_restock_create_res')->create(['stt' => Stt::RES]))
             // ── Parameterized flows: `{location}` is bound at execute time ──────────────────
             //
-            // Write-in priority cascade — *fill confirmed commitments before promising more*. Step 1
-            // creates into `ctd`, **capped at the per-subject `deficit`** (confirmed order demand not
-            // yet physically backed); step 2 spills the remainder into `atp`. The deficit is
-            // **cross-domain** — it lives in the order domain (backorders), invisible to the slot
-            // space — so the caller supplies it as an execute param. **Absent ⇒ 0**, which collapses
-            // this to a plain `create(atp)`: exactly the historical `nil → atp` receipt. Used by goods
-            // receipt (under a `po_receipt` or `stock_intake` movement type — the flow is the same
-            // physical event either way) and by positive corrections.
+            // Write-in priority cascade — *back what is already claimed before promising more*. A
+            // rising physical surface refills the states in claim order: step 1 creates into `ctd`,
+            // **capped at the per-subject `deficit`** (confirmed order demand not yet physically
+            // backed); step 2 into `res`, **capped at the `reserved_deficit`** (quantity held by live
+            // checkouts and not physically backed either); step 3 spills the remainder into `atp`.
+            // Both caps are **cross-domain** — they live in the order domain (backorders, live
+            // reservations), invisible to the slot space — so the caller supplies them as execute
+            // params. **Absent ⇒ 0**, which collapses this to a plain `create(atp)`: exactly the
+            // historical `nil → atp` receipt. Used by goods receipt (under a `po_receipt` or
+            // `stock_intake` movement type — the flow is the same physical event either way) and by
+            // positive corrections.
+            //
+            // Skipping `res` would not merely delay a hold's backing: it makes `atp` **overstate
+            // availability** by the size of the unbacked band, so the restocked units are offered to
+            // other shoppers while a live cart is holding them.
             ->withFlow(
                 FlowDefinition::define(self::FLOW_WRITE_IN)
                     ->create(['stt' => Stt::CTD, 'loc' => self::AT_LOCATION])
                     ->constraint(static fn (MovementEdge $edge, FlowContext $ctx): int => self::deficitCap($ctx))
+                    ->create(['stt' => Stt::RES, 'loc' => self::AT_LOCATION])
+                    ->constraint(static fn (MovementEdge $edge, FlowContext $ctx): int => self::reservedDeficitCap($ctx))
                     ->create(['stt' => Stt::ATP, 'loc' => self::AT_LOCATION]),
             )
             // Write-off priority cascade — *protect commitments*: drain `atp` first, then revoke
@@ -158,7 +189,11 @@ final class SlotSpaceFactory
         // clear_ctd destroys all slots matched by the engine after DimensionScope pre-filters
         // the physical rows to the single scoped loc value, so the empty pattern [] is correct.
         $physical = SlotSpaceDefinition::define(self::LAYER_PHYSICAL, [
-            DimensionDefinition::sharedRef('loc', position: 1, valueSelector: DimensionValueSelector::leaf()),
+            // Position 0, matching the commercial layer: a position is a dimension's place in the
+            // key across the whole space, not an index within one layer, so `loc` carries the same
+            // one everywhere it appears. This layer declares no `stt`, so its keys are a bare
+            // `oh` — a slot key never renders an absent dimension.
+            DimensionDefinition::sharedRef('loc', position: 0, valueSelector: DimensionValueSelector::leaf()),
         ])
             ->withFlow(FlowDefinition::define('clear_ctd')->destroy([]));
 
@@ -219,6 +254,40 @@ final class SlotSpaceFactory
     }
 
     /**
+     * Demand *grew* on an order already holding a commitment — a document raising a line. Commits
+     * the newly owed units free stock first, then out of tentative holds, and the engine threads
+     * each step's unsatisfied remainder to the next, so what neither slot can cover stays
+     * outstanding demand and surfaces as a deficit.
+     *
+     * **Why this revokes tentative holds and `book_recovered` does not.** The two are otherwise the
+     * same act, and the difference is whose decision is being honoured:
+     *
+     * - A *late payment* recovering its claim must stop at `atp`. The `hold_stock_minutes` release
+     *   already adjudicated that this order's hold had expired; falling back to `res` silently
+     *   reverses that adjudication at a third party's expense. The customer who paid on time would
+     *   lose the unit to the customer who did not, and would never learn why.
+     * - A *document raising what is owed* is a deliberate act on a confirmed order, reversing no
+     *   prior decision. Nothing can stop an operator from over-committing an order this way, so the
+     *   requirement is that the consequence lands correctly rather than that it be prevented — which
+     *   means the newly owed units are taken, and whoever's hold was revoked finds out at their own
+     *   booking rather than silently shipping short.
+     *
+     * So the asymmetry is a fairness policy, not an oversight, and it costs the *strong* form of the
+     * commitment invariant: a `ctd` deficit may now rest beside a positive `res`. That is sound —
+     * `res` is not promisable, so it oversells nothing; only a deficit beside positive **`atp`** is
+     * an oversell, and that remains impossible.
+     *
+     * Callers must **not** pre-cap the requested quantity at `atp`: it makes the second step
+     * unreachable and reinstates the bug one layer up, where it is much harder to see.
+     */
+    private static function bookDemandGrowthFlow(): FlowDefinition
+    {
+        return FlowDefinition::define('book_demand_growth')
+            ->move(['stt' => Stt::ATP], ['stt' => Stt::CTD])
+            ->move(['stt' => Stt::RES], ['stt' => Stt::CTD]);
+    }
+
+    /**
      * The `ctd`-fill cap for the write-in cascade: the caller-supplied {@see PARAM_DEFICIT} execute
      * param (confirmed-but-unbacked demand), clamped ≥ 0. Absent / non-numeric ⇒ 0 (no commitment
      * backing this receipt), so the write-in behaves as a plain `create(atp)`.
@@ -228,11 +297,30 @@ final class SlotSpaceFactory
      */
     private static function deficitCap(FlowContext $ctx): int
     {
+        return self::numericParam($ctx, self::PARAM_DEFICIT);
+    }
+
+    /**
+     * The `res`-fill cap for the write-in cascade: the caller-supplied {@see PARAM_RESERVED_DEFICIT}
+     * execute param — quantity held by live checkouts that no physical unit backs — clamped ≥ 0.
+     * Absent / non-numeric ⇒ 0, so a caller that tracks no reservations skips the band entirely.
+     *
+     * Separate from {@see PARAM_DEFICIT} because the two are different claims by different parties,
+     * and a caller may legitimately know one and not the other.
+     */
+    private static function reservedDeficitCap(FlowContext $ctx): int
+    {
+        return self::numericParam($ctx, self::PARAM_RESERVED_DEFICIT);
+    }
+
+    /** One execute param read as a non-negative integer; absent / non-numeric ⇒ 0. */
+    private static function numericParam(FlowContext $ctx, string $name): int
+    {
         /** @psalm-var mixed $params */
         $params = $ctx->context['params'] ?? null;
-        /** @psalm-var mixed $deficit */
-        $deficit = \is_array($params) ? ($params[self::PARAM_DEFICIT] ?? null) : null;
+        /** @psalm-var mixed $value */
+        $value = \is_array($params) ? ($params[$name] ?? null) : null;
 
-        return is_numeric($deficit) ? max(0, (int) $deficit) : 0;
+        return is_numeric($value) ? max(0, (int) $value) : 0;
     }
 }

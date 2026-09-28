@@ -149,6 +149,20 @@ final class ReceiveGoods
             array_filter($lines, static fn (ReceiptLine $line): bool => $line->qty > 0),
         )));
 
+        // The cost area this receipt's figures are denominated in, resolved from the landing
+        // location — and resolved HERE, before the transaction, because a composite key makes
+        // naming the rows to lock a caller obligation discharged before the lock phase. No part of
+        // a key may be derived from anything that happens after locking begins, and the whole
+        // SubjectCost key is (subject, area).
+        //
+        // Location *is* the area while every addressable location is its own valuation area, which
+        // is the case for as long as there is one of them. The seam where that stops being an
+        // identity is a hierarchy: a bin is physical-only and can never be a cost area, so a
+        // receipt landing at one must walk up to the nearest ancestor that bears valuation, and
+        // this call becomes that walk. What does NOT change is where the question is asked — the
+        // receipt's own location answers it either way, rather than a default standing in for it.
+        $costAreaId = $this->inventory->dimensionValueId('loc', $location);
+
         // The connection every Record + the InventoryStore are bound to at bootstrap — its
         // session owns the transaction opened just below, so LockSet's locks belong to it.
         $connection = PurchaseOrderLine::connection();
@@ -161,12 +175,13 @@ final class ReceiveGoods
             $fxRate,
             $poLineIds,
             $subjectIds,
+            $costAreaId,
             $connection,
         ): GoodsReceipt {
             // 1. Domain-entity locks, tier-ordered by LockSet: SubjectCost (32) →
             //    PurchaseOrder (33) → PurchaseOrderLine (34). Inventory-state locks come
             //    later (step 4). A SubjectCost row that doesn't exist yet (first receipt of
-            //    a subject) is simply not locked — it's created in step 5.
+            //    a subject into this area) is simply not locked — it's created in step 5.
             //
             //    A source-less intake locks neither procurement tier: it answers no order, so
             //    there are no ordered lines to bump and no order to transition. Both tiers are
@@ -180,8 +195,15 @@ final class ReceiveGoods
             //    invariant is what lets this read the id without resolving the ref type — and it
             //    is why an add-on's own source (an advance shipping notice, whose lines reference
             //    its own) locks nothing here and takes its own locks in its own tier.
+            // A SubjectCost row is named by its whole key, so the cost area resolved above rides
+            // into the lock rather than being applied afterwards. That is what makes the scoping
+            // structural instead of a filter: a figure for the same subject in another area is a
+            // different row, not a row to be discarded on the way back.
             $locks = LockSet::acquire($connection, [
-                SubjectCost::class       => $subjectIds,
+                SubjectCost::class       => array_map(
+                    static fn (int $id): array => ['subject_id' => $id, 'cost_area_id' => $costAreaId],
+                    $subjectIds,
+                ),
                 PurchaseOrder::class     => [] === $poLineIds ? [] : [(int) $receipt->source_id],
                 PurchaseOrderLine::class => $poLineIds,
             ]);
@@ -190,6 +212,20 @@ final class ReceiveGoods
             $existingCosts = [];
             foreach ($locks[SubjectCost::class] as $cost) {
                 /** @var SubjectCost $cost */
+                // Keyed by subject alone even though the row's key is a pair — correct because the
+                // lock named one area, so the set cannot hold two rows for one subject. The
+                // tripwire stays: it is cheap, and it is what would catch a future caller that
+                // receives into several areas at once and reaches this loop expecting the old
+                // shape. Without it that caller gets whichever row the lock returned last, and a
+                // WAC weighted against the wrong area — wrong, silent, and downstream of
+                // everything that could notice.
+                if (isset($existingCosts[$cost->subject_id])) {
+                    throw new \LogicException(sprintf(
+                        'SubjectCost returned more than one cost area for subject %d; '
+                        .'this collection must be keyed on the full primary key.',
+                        $cost->subject_id,
+                    ));
+                }
                 $existingCosts[$cost->subject_id] = $cost;
             }
 
@@ -249,6 +285,7 @@ final class ReceiveGoods
             //    received units, so the weight is race-free without a second lock tier.
             $costs = $this->recomputeWeightedAverageCosts(
                 $subjectIds,
+                $costAreaId,
                 $receivedQtyBySubject,
                 $costedQtyBySubject,
                 $costedValueBySubject,
@@ -442,6 +479,8 @@ final class ReceiveGoods
      * revisit if exact decimal accumulation is needed.
      *
      * @param list<int>               $subjectIds
+     * @param int                     $costAreaId           the area every row written here is denominated in — the
+     *                                                      other half of the key, so a created row cannot omit it
      * @param array<int, int>         $receivedQtyBySubject
      * @param array<int, int>         $costedQtyBySubject
      * @param array<int, float>       $costedValueBySubject
@@ -451,6 +490,7 @@ final class ReceiveGoods
      */
     private function recomputeWeightedAverageCosts(
         array $subjectIds,
+        int $costAreaId,
         array $receivedQtyBySubject,
         array $costedQtyBySubject,
         array $costedValueBySubject,
@@ -470,7 +510,8 @@ final class ReceiveGoods
             $receivedQty = $receivedQtyBySubject[$subjectId] ?? 0;
             $onHandBefore = max(0, ($onHandAfter[$subjectId] ?? $receivedQty) - $receivedQty);
 
-            $cost = $existingCosts[$subjectId] ?? SubjectCost::newWith(['subject_id' => $subjectId]);
+            $cost = $existingCosts[$subjectId]
+                ?? SubjectCost::newWith(['subject_id' => $subjectId, 'cost_area_id' => $costAreaId]);
             // Weight the existing on-hand against the WAC if set, else the merchant-seeded
             // seed_cost (so a valuation seed blends into the *first* receipt instead of being
             // silently discarded). With neither, the receipt cost establishes the WAC.

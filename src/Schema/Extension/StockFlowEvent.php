@@ -86,6 +86,13 @@ final class StockFlowEvent
      */
     public const CORRECTION_RESTOCK_CREATE_CTD = 'correction.restock_create_ctd';
 
+    /**
+     * Same again, one band up: commitments are whole, but a live checkout is holding units nothing
+     * physically backs, so the returned units back that hold. Were the fill to jump straight to
+     * availability, those units would be offered to other shoppers while a cart still held them.
+     */
+    public const CORRECTION_RESTOCK_CREATE_RES = 'correction.restock_create_res';
+
     /** Committed units are written off rather than returned — damaged, lost, non-returnable. */
     public const CORRECTION_WRITEOFF_CTD = 'correction.writeoff_ctd';
 

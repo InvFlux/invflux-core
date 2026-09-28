@@ -38,6 +38,19 @@ enum OrderEventType: string
     case OrderSourceDeleted = 'order.source_deleted';
 
     /**
+     * The order closed while units were still staged, so the staging was dropped.
+     *
+     * Staged means picked: someone took those units off the shelf and set them aside for this
+     * order. Closing the order releases the claim, and the count on the lines goes to zero — but
+     * the units are physically still wherever the picker left them until a human puts them back.
+     * This event is what says so, since most closes arrive from the host (a cancellation, a
+     * refund, the bin) with no chance to warn anyone first.
+     *
+     * Payload carries `units`, the total dropped across the order's lines.
+     */
+    case OrderLinesUnstaged = 'order.lines_unstaged';
+
+    /**
      * The host document changed a line's quantity on a booked order: the projection mirrored
      * the gross (`qty_ordered` follows the document; it is the host's number) and the stock
      * side released the outstanding-delta back to `atp`. One event per edited line. The
@@ -242,6 +255,7 @@ enum OrderEventType: string
             self::OrderLocked,
             self::OrderUnlocked,
             self::OrderSourceDeleted,
+            self::OrderLinesUnstaged,
             self::OrderLineEdited,
             self::OrderAddressCorrected,
             self::OrderAddressChangedExternally,

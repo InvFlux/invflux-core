@@ -142,7 +142,39 @@ final class VarianceStatusTest extends TestCase
         self::assertSame(10, $line->expectedQty());
     }
 
-    private function line(int $requested, int $received, int $open, int $closedShort = 0): PurchaseOrderLine
+    // ── An inheriting line (a draft that has not been given a quantity) ──────────────────────────
+
+    /**
+     * A line whose quantity is still inherited has no ordered figure, and every variance it can be
+     * asked for is 0 — nothing has been ordered and nothing has arrived.
+     *
+     * The assertions worth reading are the first two together: `qty_requested` stays null, so a
+     * caller can still tell "has not chosen" from "orders nothing", while every arithmetic path
+     * resolves it to 0 rather than propagating the null into a subtraction.
+     */
+    public function testAnInheritedQuantityIsNotAnOrderedQuantity(): void
+    {
+        $line = $this->line(requested: null, received: 0, open: 0);
+
+        self::assertNull($line->qty_requested, 'the column keeps the distinction the accessors erase');
+        self::assertSame(0, $line->orderedQty());
+        self::assertSame(0, $line->baselineQty(VarianceLens::Ordered));
+        self::assertSame(0, $line->expectedQty(), 'nothing confirmed, so it falls back to nothing ordered');
+        self::assertSame(0, $line->confirmationVarianceQty());
+        self::assertSame(VarianceStatus::Match, $line->confirmationStatus());
+    }
+
+    /** A supplier confirmation against a line nobody has costed out yet reads as a pure over. */
+    public function testAConfirmationAgainstAnInheritedQuantityIsMeasuredFromZero(): void
+    {
+        $line = $this->line(requested: null, received: 0, open: 0);
+        $line->qty_expected = 6;
+
+        self::assertSame(6, $line->confirmationVarianceQty());
+        self::assertSame(VarianceStatus::Over, $line->confirmationStatus());
+    }
+
+    private function line(?int $requested, int $received, int $open, int $closedShort = 0): PurchaseOrderLine
     {
         $line = new PurchaseOrderLine();
         $line->qty_requested = $requested;
