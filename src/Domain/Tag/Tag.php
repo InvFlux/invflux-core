@@ -35,7 +35,7 @@ use Nandan108\Attrecord\Record;
  * Admin-minted, low-cardinality → a plain auto-increment `id`. `slug` is the
  * stable machine key (derived from the name on create, or fixed for
  * system-seeded tags); `name` is the display label; `color` an optional
- * `#RRGGBB` chip colour.
+ * `#RRGGBB` chip color.
  *
  * @api
  *
@@ -64,14 +64,14 @@ final class Tag extends Record
     #[Column(ColumnType::VarChar, length: 128)]
     public string $name = '';
 
-    /** Index (0..23) into the fixed {@see TagColorPalette} (Gmail-modeled). Default = light grey. */
+    /** Index (0..23) into the fixed {@see TagColorPalette} (Gmail-modeled). Default = light gray. */
     #[Column(ColumnType::TinyIntUnsigned, default: TagColorPalette::DEFAULT_ID)]
     public int $color_id = TagColorPalette::DEFAULT_ID;
 
     /**
-     * Pro governance behaviours this tag carries (bitmask; empty = a plain,
+     * Pro governance behaviors this tag carries (bitmask; empty = a plain,
      * Essentials descriptive tag). A shared namespace across scopes — each surface
-     * honours the bits it implements. See {@see GovernanceFlag}.
+     * honors the bits it implements. See {@see GovernanceFlag}.
      *
      * @var list<GovernanceFlag>
      */
@@ -81,7 +81,7 @@ final class Tag extends Record
 
     /**
      * Signed ordinal sort-weight for the carrying entity's default listing
-     * (dispatch-honoured today): positive **promotes** (Urgent floats to the top
+     * (dispatch-honored today): positive **promotes** (Urgent floats to the top
      * of the queue), negative **demotes** (Backburner sinks below the late ones),
      * `0` = neutral. An order's effective priority is `MAX(priority)` across its
      * tags. Priority is a separate axis from {@see GovernanceFlag::SuppressActive}
@@ -120,7 +120,7 @@ final class Tag extends Record
         return null !== $this->archived_at;
     }
 
-    /** Whether this tag carries any Pro governance behaviour (a flag, a non-neutral priority, or restricted access). */
+    /** Whether this tag carries any Pro governance behavior (a flag, a non-neutral priority, or restricted access). */
     public function isGovernance(): bool
     {
         return [] !== $this->governance_flags
@@ -128,7 +128,7 @@ final class Tag extends Record
             || ManageAuthority::Anyone !== $this->manage_authority;
     }
 
-    /** Whether this tag's governance flags include the given behaviour. */
+    /** Whether this tag's governance flags include the given behavior. */
     public function hasFlag(GovernanceFlag $flag): bool
     {
         return \in_array($flag, $this->governance_flags, true);

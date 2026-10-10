@@ -16,8 +16,8 @@ final class WireTest extends TestCase
         $this->assertSame('2026-07-29T14:03:22.123Z', Wire::utcIso($dt));
     }
 
-    /** The `Z` is the point: a non-UTC input must be converted, not relabelled. */
-    public function testUtcIsoNormalisesNonUtcInput(): void
+    /** The `Z` is the point: a non-UTC input must be converted, not relabeled. */
+    public function testUtcIsoNormalizesNonUtcInput(): void
     {
         $dt = new \DateTimeImmutable('2026-07-29 16:03:22.000000', new \DateTimeZone('Europe/Zurich'));
 

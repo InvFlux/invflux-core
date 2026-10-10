@@ -41,7 +41,7 @@ final class ReceiptCostPolicyTest extends TestCase
 
     public function testAnEnteredCostReasonAcceptsALineThatStatesOne(): void
     {
-        $receipt = GoodsReceipt::newWith(['reason' => ReceiptReason::SupplierDelivery]);
+        $receipt = GoodsReceipt::newWith(['reason' => ReceiptReason::PurchaseWithoutOrder]);
 
         ReceiveGoods::assertCostIsStatable($receipt, [self::line(subjectId: 7, qty: 10, unitCost: '4.5000')]);
 
@@ -62,7 +62,7 @@ final class ReceiptCostPolicyTest extends TestCase
     }
 
     /**
-     * A transfer's cost travels with the goods, which needs somewhere for them to have travelled
+     * A transfer's cost travels with the goods, which needs somewhere for them to have traveled
      * from. While the location dimension holds a single on-hand address there is no origin to read,
      * and the honest answer is to refuse rather than substitute a standing valuation — that would
      * record a cost that never moved, and read afterwards exactly like one that did.
@@ -84,7 +84,6 @@ final class ReceiptCostPolicyTest extends TestCase
     public static function deferredCostReasons(): iterable
     {
         yield 'found stock falls back to the standing valuation' => [ReceiptReason::FoundStock];
-        yield 'goods back outside the RMA process do too'        => [ReceiptReason::ReturnOutsideRma];
         yield 'a sample cost nothing, and zero is the fact'      => [ReceiptReason::SampleOrDonation];
     }
 

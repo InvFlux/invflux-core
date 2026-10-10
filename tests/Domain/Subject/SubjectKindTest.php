@@ -97,7 +97,7 @@ final class SubjectKindTest extends TestCase
 
     /**
      * The identity predicates stay exhaustive as cases are added — a `NonStocked` that answered
-     * `isUnit()` would quietly acquire unit behaviour everywhere the old predicates are still used.
+     * `isUnit()` would quietly acquire unit behavior everywhere the old predicates are still used.
      */
     public function testIdentityPredicatesAreMutuallyExclusive(): void
     {

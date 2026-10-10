@@ -11,7 +11,7 @@ use Nandan108\Attrecord\JsonCastable;
  * (per {@see OrderEventType::isMonetary()}).
  *
  * Captures both the source amount (what the merchant or customer sees) and the
- * normalised "base" amount (the install's reporting currency) along with the FX rate
+ * normalized "base" amount (the install's reporting currency) along with the FX rate
  * used at event-write-time. The base fields are populated unconditionally —
  * including the trivial `base_currency === currency` case — so historical
  * reconstruction can rely on them without inferring intent — one of the

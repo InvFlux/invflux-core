@@ -28,10 +28,10 @@ enum LicenseState: string
     /** Involuntary payment failure; full entitlement until `grace_until`, updates paused. */
     case Lapsed = 'lapsed';
 
-    /** Merchant cancelled; full entitlement until `paid_through`, then re-issued as Frozen. */
-    case Cancelled = 'cancelled';
+    /** Merchant canceled; full entitlement until `paid_through`, then re-issued as Frozen. */
+    case Canceled = 'canceled';
 
-    /** Cancelled-and-term-ended; features run per captured manifest, no further updates. */
+    /** Canceled-and-term-ended; features run per captured manifest, no further updates. */
     case Frozen = 'frozen';
 
     /** For-cause termination; paid features fall to the revoke matrix, Essentials continues. */

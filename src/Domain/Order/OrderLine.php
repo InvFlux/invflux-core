@@ -166,7 +166,7 @@ final class OrderLine extends Record
      * **`null` means the line carries no class, and that is a fact rather than a gap.** An order
      * with one classed line in four is genuinely mixed, and a display that shows only the class
      * would assert every line shares it. Absence is therefore a member of the set wherever these
-     * are summarised, never an empty cell.
+     * are summarized, never an empty cell.
      *
      * A snapshot, like {@see $sku} and {@see $name} beside it: reclassifying a product does not
      * rewrite how orders already placed had to ship.
@@ -227,24 +227,55 @@ final class OrderLine extends Record
     #[Column(ColumnType::Char, length: 3, nullable: true)]
     public ?string $cost_currency = null;
 
-    #[Column(ColumnType::SmallIntUnsigned, default: 0)]
+    #[Column(ColumnType::IntUnsigned, default: 0)]
     public int $qty_ordered = 0;
 
-    #[Column(ColumnType::SmallIntUnsigned, default: 0)]
+    /**
+     * Units taken off this line **before** they shipped: cancellations, shortfalls, pre-dispatch
+     * refunds, and the like. They are no longer owed, so they reduce {@see $qty_outstanding}. A
+     * reinstated cancellation decrements it.
+     */
+    #[Column(ColumnType::IntUnsigned, default: 0)]
+    public int $qty_canceled = 0;
+
+    /**
+     * Units corrected **after** they shipped: returns and post-dispatch refunds. A shipped unit that
+     * comes back was still delivered, so it leaves {@see $qty_outstanding} alone; it counts only
+     * towards {@see $qty_corrected}, which the refund prorates on.
+     */
+    #[Column(ColumnType::IntUnsigned, default: 0)]
+    public int $qty_returned = 0;
+
+    /**
+     * Every corrected unit, whichever side of shipment: `qty_canceled + qty_returned`. Maintained by
+     * the database, so it cannot disagree with its two parts; nothing writes it.
+     *
+     * Read it for totals (what was corrected, what the refund prorates on). Read
+     * {@see $qty_canceled} for what is still owed: a returned unit was delivered, so subtracting it
+     * from the ordered quantity would under-count the units still to ship.
+     *
+     * @psalm-suppress UnusedProperty hydrated by the DB on every read;
+     *                                no PHP write path touches it.
+     */
+    #[Column(
+        ColumnType::IntUnsigned,
+        generatedAs: 'qty_canceled + qty_returned',
+        generatedMode: GeneratedColumnMode::Virtual,
+    )]
     public int $qty_corrected = 0;
 
-    #[Column(ColumnType::SmallIntUnsigned, default: 0)]
+    #[Column(ColumnType::IntUnsigned, default: 0)]
     public int $qty_shipped = 0;
 
     /**
      * Outstanding customer obligation: how many units on this line still
-     * need to be dispatched to honour the order. Maintained by the DB so
+     * need to be dispatched to honor the order. Maintained by the DB so
      * callers never have to repeat the arithmetic.
      *
      * The operands are CAST to SIGNED before subtracting, exactly as
      * {@see \Nandan108\InvFlux\Domain\Procurement\PurchaseOrderLine::$qty_open}
-     * does: all three columns are `SMALLINT UNSIGNED`, so an over-count
-     * (`qty_corrected + qty_shipped > qty_ordered`) underflows unsigned
+     * does: all three columns are `INT UNSIGNED`, so an over-count
+     * (`qty_canceled + qty_shipped > qty_ordered`) underflows unsigned
      * arithmetic. `GREATEST(0, …)` clamps the *result*, but the intermediate
      * subtraction range-errors before the clamp is reached — and it does so
      * only when the engine re-evaluates the column across every row, i.e.
@@ -253,6 +284,9 @@ final class OrderLine extends Record
      * but permanently un-ALTERable, with the error naming whichever
      * constraint happened to trigger the rebuild. Signing the operands keeps
      * it well-defined at every stage.
+     *
+     * Only units canceled **before** shipment are subtracted ({@see $qty_canceled}), never
+     * returned ones: ordered 3, shipped 2, one returned still owes one.
      *
      * **`qty_outstanding`, not `qty_shippable`** — the value represents
      * what's still *owed* to the customer, regardless of whether the
@@ -266,8 +300,8 @@ final class OrderLine extends Record
      *                                no PHP write path touches it.
      */
     #[Column(
-        ColumnType::SmallIntUnsigned,
-        generatedAs: 'GREATEST(0, CAST(qty_ordered AS SIGNED) - CAST(qty_corrected AS SIGNED) - CAST(qty_shipped AS SIGNED))',
+        ColumnType::IntUnsigned,
+        generatedAs: 'GREATEST(0, CAST(qty_ordered AS SIGNED) - CAST(qty_canceled AS SIGNED) - CAST(qty_shipped AS SIGNED))',
         generatedMode: GeneratedColumnMode::Virtual,
     )]
     public int $qty_outstanding = 0;
@@ -279,7 +313,7 @@ final class OrderLine extends Record
      * `staged_by` / `staged_at` / `staged_source` trio beneath keeps its own prefix, being
      * provenance rather than counts.
      */
-    #[Column(ColumnType::SmallIntUnsigned, default: 0)]
+    #[Column(ColumnType::IntUnsigned, default: 0)]
     public int $qty_staged = 0;
 
     #[Column(ColumnType::IntUnsigned, nullable: true)]
@@ -322,9 +356,10 @@ final class OrderLine extends Record
     }
 
     /**
-     * The refund owed for correcting `$qty` more units of this line, given the
-     * {@see $qty_corrected} it already carries — at the price the customer paid, never the list
-     * price.
+     * The refund owed for correcting `$qty` more units of this line, given the units it already has
+     * corrected on either side of shipment ({@see $qty_canceled} + {@see $qty_returned}, the stored
+     * parts of {@see $qty_corrected}, so the answer holds on a record the database has not re-read)
+     * — at the price the customer paid, never the list price.
      *
      * Prorated **cumulatively**: the first `n` corrected units carry `round(net × n / ordered)`, and
      * one correction gets the difference between the running totals either side of it. However the
@@ -343,7 +378,7 @@ final class OrderLine extends Record
             return '0.00';
         }
 
-        $before = min(max(0, $this->qty_corrected), $ordered);
+        $before = min(max(0, $this->qty_canceled + $this->qty_returned), $ordered);
         $after = min($before + $qty, $ordered);
         $net = $this->netTotalCents();
 

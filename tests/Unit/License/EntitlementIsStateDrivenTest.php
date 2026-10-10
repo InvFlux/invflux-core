@@ -15,8 +15,8 @@ use PHPUnit\Framework\TestCase;
  * Entitlement is decided by **state**, never by a date — and this is the tripwire for it.
  *
  * `paidThrough` and `graceUntil` ride every entitlement, and neither is read by
- * {@see Entitlement::permits()}. They are display data: the renewal line on a licence card, the
- * countdown on a lapse notice. A licence stops entitling when something *happens* to it — a failed
+ * {@see Entitlement::permits()}. They are display data: the renewal line on a license card, the
+ * countdown on a lapse notice. A license stops entitling when something *happens* to it — a failed
  * payment, a cancellation, a revocation — not because a timestamp went by.
  *
  * ## Why this is worth a test rather than a comment
@@ -34,7 +34,7 @@ use PHPUnit\Framework\TestCase;
  * because nothing happened.
  *
  * The lapse path is the second layer and is unaffected either way: a genuine failure moves the
- * licence to `lapsed`, which still grants the full manifest for the whole grace window.
+ * license to `lapsed`, which still grants the full manifest for the whole grace window.
  */
 final class EntitlementIsStateDrivenTest extends TestCase
 {
@@ -44,7 +44,7 @@ final class EntitlementIsStateDrivenTest extends TestCase
     {
         // Paid through a week ago, and no event has arrived to say otherwise. The renewal may be
         // mid-settlement at the merchant of record; from here that is indistinguishable from a
-        // licence whose webhook is simply slow, and both deserve the same answer.
+        // license whose webhook is simply slow, and both deserve the same answer.
         $entitlement = $this->entitlement(LicenseState::Active, paidThrough: time() - 7 * 86400);
 
         self::assertTrue($entitlement->permits(self::KEY, AccessMode::Write));
@@ -66,9 +66,9 @@ final class EntitlementIsStateDrivenTest extends TestCase
 
     public function testAnElapsedGraceIsStillNotWhatDecides(): void
     {
-        // `graceUntil` is display data too. What ends a lapse is the server moving the licence to
+        // `graceUntil` is display data too. What ends a lapse is the server moving the license to
         // `frozen` on its scheduled pass and issuing a blob that says so — not the plugin watching
-        // a clock. Until that blob arrives the install keeps working, deliberately: a licence must
+        // a clock. Until that blob arrives the install keeps working, deliberately: a license must
         // never change meaning in the field while the thing that decides it is unreachable.
         $entitlement = $this->entitlement(
             LicenseState::Lapsed,

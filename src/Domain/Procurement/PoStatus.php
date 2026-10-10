@@ -9,10 +9,10 @@ namespace Nandan108\InvFlux\Domain\Procurement;
  * {@see PurchaseOrderLifecycle}. Int-backed so the value is a stable, sortable code in the
  * `pos.status` TINYINT column and legible in raw-SQL status filters (`->value`).
  *
- * The integer codes are **odd by design**, leaving every even value free: a new intermediate
- * state can be inserted between two existing ones without renumbering, so an Essentials install and
- * an install carrying extra states still agree on what each integer means. Lifecycle order is
- * defined by the transition map, never by the integer — the ascending values here are a
+ * The integer codes are **odd by design**, leaving every even value free, so an add-on can insert an
+ * intermediate state between two existing ones without renumbering the base set, and an Essentials
+ * install and an install carrying extra states still agree on what each integer means. Lifecycle
+ * order is defined by the transition map, never by the integer — the ascending values here are a
  * convenience, not a contract.
  *
  * Renumbering is a **breaking data change**: `pos.status` stores the integer, and the enum
@@ -44,31 +44,39 @@ enum PoStatus: int
 
     /**
      * Supplier confirmed the order (order acknowledgement) — an optional waypoint between submission and
-     * dispatch. The manual flip is base behaviour; feeding it from OA/EDI/ASN ingestion is an add-on.
+     * dispatch. The manual flip is base behavior; feeding it from OA/EDI/ASN ingestion is an add-on.
      */
     case Acknowledged = 9;
 
     /** Supplier dispatched — goods in transit to us. */
     case InTransit = 11;
 
+    /**
+     * The goods are at the dock, unopened and uncounted. An event, not a stock movement: nothing
+     * enters on-hand until the count is posted, so the units are still inbound and the order stays
+     * {@see isOpenForInbound()}. An optional waypoint — a shop that counts as it unloads goes straight
+     * to {@see InReception}.
+     */
+    case Arrived = 13;
+
     /** A reception session is open (goods being counted in). */
-    case InReception = 13;
+    case InReception = 15;
 
     /**
-     * Multi-delivery resting state — "got some, awaiting more". Base behaviour: receiving one delivery of
+     * Multi-delivery resting state — "got some, awaiting more". Base behavior: receiving one delivery of
      * a split shipment and parking the PO until the next is recording what physically arrived, so the whole
      * cycle is seeded on {@see PurchaseOrderLifecycle} — the entry edge (in_reception → partially_received),
      * the reopen exit (→ in_reception for the next delivery) and the finalize exit (→ received, a final
      * receipt or a close-short). What an add-on layers on top is not this state but the advance-shipment-
      * notice document each receipt reconciles against.
      */
-    case PartiallyReceived = 15;
+    case PartiallyReceived = 17;
 
     /** Fully received — terminal happy-path state. */
-    case Received = 17;
+    case Received = 19;
 
-    /** Cancelled before goods were received. */
-    case Cancelled = 19;
+    /** Canceled before goods were received. */
+    case Canceled = 21;
 
     /**
      * Stable, kebab serialization name — the status's identity on the wire. The API and SPA speak these
@@ -84,10 +92,11 @@ enum PoStatus: int
             self::Submitted         => 'submitted',
             self::Acknowledged      => 'acknowledged',
             self::InTransit         => 'in_transit',
+            self::Arrived           => 'arrived',
             self::InReception       => 'in_reception',
             self::PartiallyReceived => 'partially_received',
             self::Received          => 'received',
-            self::Cancelled         => 'cancelled',
+            self::Canceled          => 'canceled',
         };
     }
 
@@ -109,14 +118,15 @@ enum PoStatus: int
      * The boundary is **the order is with the supplier and not finished arriving**. Everything
      * before {@see Submitted} is ours alone: a draft, a review or an approval is not stock on the
      * way, because the supplier has not been told. Everything from {@see Submitted} to
-     * {@see PartiallyReceived} is: including the half-arrived resting state, whose remainder is
+     * {@see PartiallyReceived} is: including {@see Arrived}, whose goods are here but not yet
+     * counted, the half-arrived resting state, whose remainder is
      * still genuinely inbound, and including {@see Acknowledged}, which is the *more* certain
      * version of a status already inside the set.
      *
      * **This answers status only.** How much is still coming is `po_lines.qty_open`, a generated
      * column (ordered − received), so a caller asks both: `status IN (open) AND qty_open > 0`. That
      * split is why {@see Received} needs no special handling — a fully-received PO has no open
-     * quantity — and why {@see Cancelled} genuinely needs excluding here, since a PO abandoned
+     * quantity — and why {@see Canceled} genuinely needs excluding here, since a PO abandoned
      * before delivery keeps a real `qty_open` forever.
      *
      * **Nor does it answer whether the order is still in the working set.** Filing one away is not
@@ -127,10 +137,10 @@ enum PoStatus: int
     public function isOpenForInbound(): bool
     {
         return match ($this) {
-            self::Submitted, self::Acknowledged, self::InTransit,
+            self::Submitted, self::Acknowledged, self::InTransit, self::Arrived,
             self::InReception, self::PartiallyReceived => true,
             self::InPrep, self::InReview, self::Approved,
-            self::Received, self::Cancelled => false,
+            self::Received, self::Canceled => false,
         };
     }
 

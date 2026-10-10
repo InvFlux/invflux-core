@@ -39,7 +39,7 @@ namespace Nandan108\InvFlux\Util;
  * ## Empty strings are data, not absence
  *
  * `''` is a legitimate value in a VARCHAR column, so {@see str()} returns it unchanged and
- * a strict `str()` does not throw on it. Callers that want the *wire-shaping* behaviour —
+ * a strict `str()` does not throw on it. Callers that want the *wire-shaping* behavior —
  * collapse `''` to `null`, because a LEFT JOIN miss and an empty column should look the
  * same on the wire — ask for it by name via {@see nonEmptyStr()}. Keeping the two apart
  * means `$default` never quietly does two jobs, and buys a real `non-empty-string` out of

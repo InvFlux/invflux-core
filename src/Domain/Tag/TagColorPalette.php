@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Nandan108\InvFlux\Domain\Tag;
 
 /**
- * The fixed tag-colour palette, modeled on Gmail's label palette — 24 entries,
+ * The fixed tag-color palette, modeled on Gmail's label palette — 24 entries,
  * each a `(background, foreground)` pair pre-tuned for WCAG-AA contrast. Tags
  * store a {@see Tag::$color_id} index (0..23) into this palette rather than a
  * free-form hex, so visuals stay consistent and accessible (arbitrary merchant
@@ -21,7 +21,7 @@ final class TagColorPalette
     /** Number of palette entries (valid `color_id` is `0 .. COUNT - 1`). */
     public const COUNT = 24;
 
-    /** Default index for tags created without an explicit colour — light grey. */
+    /** Default index for tags created without an explicit color — light gray. */
     public const DEFAULT_ID = 0;
 
     public static function isValidId(int $colorId): bool

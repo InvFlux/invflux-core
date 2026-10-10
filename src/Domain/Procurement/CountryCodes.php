@@ -1816,7 +1816,7 @@ final class CountryCodes
     ];
 
     /**
-     * The alpha-2 code a value names, or the value unchanged when nothing recognises it.
+     * The alpha-2 code a value names, or the value unchanged when nothing recognizes it.
      *
      * `$folded` must already be {@see PartyFactNormalizer}'s folded form. The `CC:SUBDIVISION`
      * split happens before folding strips the colon, so it is the caller's — see

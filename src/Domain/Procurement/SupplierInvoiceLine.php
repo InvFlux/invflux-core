@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nandan108\InvFlux\Domain\Procurement;
 
 use Nandan108\Attrecord\Attribute\Column;
+use Nandan108\Attrecord\Attribute\ForeignKey;
 use Nandan108\Attrecord\Attribute\Index;
 use Nandan108\Attrecord\Attribute\LockTier;
 use Nandan108\Attrecord\Attribute\Relation;
@@ -22,7 +23,7 @@ use Nandan108\Attrecord\Record;
  * real event, but it is a dispute rather than a line we can value against: there is no ordered line
  * to attach a rate to and no receipt that will ever consume it. Recording it belongs to the Pro
  * match, which has somewhere to put an unmatched charge; refusing it here keeps this document
- * honestly narrow rather than half-modelling it.
+ * honestly narrow rather than half-modeling it.
  *
  * Quantity and rate are both the supplier's claim, kept verbatim. They are **not** reconciled
  * against what arrived — that comparison is the three-way match, and it is a Pro reading of these
@@ -34,6 +35,26 @@ use Nandan108\Attrecord\Record;
  * @psalm-suppress PossiblyUnusedProperty Properties are hydrated by attrecord from row data.
  */
 #[Table(name: 'invflux_supplier_invoice_lines')]
+// The ordered line being billed, named by its whole key: a line of another order, or of another
+// product than the one billed, cannot be referred to. Restrict, not Cascade: deleting an order line
+// that a supplier has already invoiced would leave the charge unexplained, so the deletion is the
+// thing that must be refused.
+#[ForeignKey(
+    column: ['po_id', 'subject_id'],
+    references: PurchaseOrderLine::class,
+    onDelete: ForeignKeyAction::Restrict,
+)]
+// And the other half of the diamond: the invoice names its order, and so does each of its lines,
+// and pairing the two against the invoice's own (id, po_id) is what makes them agree. Without it an
+// invoice for one order could carry a line billing another's. This is also the line's tie to its
+// invoice, so it carries the cascade a plain invoice_id key would.
+#[ForeignKey(
+    column: ['invoice_id', 'po_id'],
+    references: 'invflux_supplier_invoices',
+    referencesColumn: ['id', 'po_id'],
+    onDelete: ForeignKeyAction::Cascade,
+)]
+#[Index('idx_po_line', columns: ['po_id', 'subject_id'])]
 #[LockTier(41)]
 final class SupplierInvoiceLine extends Record
 {
@@ -44,30 +65,25 @@ final class SupplierInvoiceLine extends Record
     #[Index('idx_invoice')]
     public int $invoice_id = 0;
 
+    /** The invoice's own key is carried by the class-level diamond constraint, not by this relation. */
     #[Relation(
         RelationType::ManyToOne,
         class: SupplierInvoice::class,
         foreignKey: 'invoice_id',
-        onDelete: ForeignKeyAction::Cascade,
+        emitFk: false,
     )]
     public ?SupplierInvoice $invoice = null;
 
     /**
-     * The ordered line being billed. Restrict, not Cascade: deleting an order line that a supplier
-     * has already invoiced would leave the charge unexplained, so the deletion is the thing that
-     * must be refused.
+     * The order being billed: always the invoice's own (the diamond constraint enforces it), and with
+     * {@see $subject_id} the key of the ordered line this line bills.
      */
     #[Column(ColumnType::IntUnsigned)]
-    #[Index('idx_po_line')]
-    public int $po_line_id = 0;
+    public int $po_id = 0;
 
-    #[Relation(
-        RelationType::ManyToOne,
-        class: PurchaseOrderLine::class,
-        foreignKey: 'po_line_id',
-        onDelete: ForeignKeyAction::Restrict,
-    )]
-    public ?PurchaseOrderLine $purchaseOrderLine = null;
+    /** The product billed, and the second half of the ordered line's key. */
+    #[Column(ColumnType::IntUnsigned)]
+    public int $subject_id = 0;
 
     /** Units billed on this line, as the supplier stated them. */
     #[Column(ColumnType::IntUnsigned)]

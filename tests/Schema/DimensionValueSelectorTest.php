@@ -119,7 +119,7 @@ final class DimensionValueSelectorTest extends TestCase
     /**
      * The commercial layer must address warehouses *and* the places that are not warehouses —
      * supplier-side stock, transit legs, the customer's hands. Both level names, neither
-     * mislabelled as the other.
+     * mislabeled as the other.
      */
     public function testTheCommercialLayerAddressesWarehousesAndExternalCustody(): void
     {

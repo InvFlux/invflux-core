@@ -73,7 +73,7 @@ interface SchemaManager
      * re-reads under the longer name, so a movement written when the value was `oh` reads as
      * `oh/main` afterwards. The interposed parent is minted empty and has no history of its own.
      *
-     * That retroactive relabelling is truthful — the location did not move, it acquired a longer
+     * That retroactive relabeling is truthful — the location did not move, it acquired a longer
      * name — but it is invisible without a record, so the operation writes a `location_hierarchised`
      * row to the schema ledger. That row is what explains a movement rendering under a code minted
      * after it, and it is the reason this is an audited operation rather than a rename.
@@ -121,7 +121,7 @@ interface SchemaManager
      * statically-defined dimension declares its default in code. Without this, the default for
      * such a dimension falls back to the first value in code order — deterministic, but
      * semantically arbitrary, so registering `oh/dock1` alongside `oh/main` would silently move
-     * it. Declaring it makes the default a decision rather than an artefact of sort order.
+     * it. Declaring it makes the default a decision rather than an artifact of sort order.
      *
      * Idempotent, and never inferred: callers state the value they mean.
      *

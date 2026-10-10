@@ -8,12 +8,14 @@ namespace Nandan108\InvFlux\Domain\Order;
  * The canonical built-in order-correction-type registry shipped with InvFlux core.
  *
  * Storage adapters seed `invflux_order_correction_types` from {@see all()} on install.
- * Add-on packages may extend the registry through the forthcoming
- * `OrderCorrectionTypeRegistrar` rather than mutating this list.
  *
- * Tier gating is **not** modelled here. The full set is seeded; tier-specific
- * visibility (e.g., post-shipment return types being Pro-only in the workbench UI) is
- * enforced at the application layer via `LicenseGate::allows()`.
+ * Which of these types a person may *create* is not modeled here. The full set is seeded, and the
+ * host adapter decides which types its creation surfaces offer; an add-on widens that choice
+ * through the adapter, never by mutating this list.
+ *
+ * A type's `pre_dispatch` flag also decides which line counter a correction moves: before
+ * shipment, {@see OrderLine::$qty_canceled}; after it, {@see OrderLine::$qty_returned}. The one
+ * exception is `cancel_reversal` (below).
  *
  * Flag matrix: `pre_dispatch × restock` forms the 2×2 that drives slot movement;
  * `refund` is the default-refund-owed flag. Fault attribution is NOT here — it
@@ -42,10 +44,11 @@ final class BuiltInCorrectionTypes
             OrderCorrectionType::newWith(['code' => 'cancel_customer', 'name' => 'Cancelled by customer', 'pre_dispatch' => true,  'restock' => true,  'refund' => true]),
             OrderCorrectionType::newWith(['code' => 'cancel_merchant', 'name' => 'Cancelled by merchant', 'pre_dispatch' => true,  'restock' => true,  'refund' => true]),
 
-            // ── Cancellation reversal (order reinstated: cancelled → processing) ─────────
+            // ── Cancellation reversal (order reinstated: canceled → processing) ─────────
             // The compensating record for un-doing a cancellation: it RESTORES the line's
-            // outstanding (decrements `qty_corrected`) and its unsettled cancel-refund is waived —
-            // it never mutates the original processed cancel correction. Flags are `false/false`
+            // outstanding (decrements `qty_canceled`, although the type is not `pre_dispatch`) and its
+            // unsettled cancel-refund is waived — it never mutates the original processed cancel
+            // correction. Flags are `false/false`
             // (no engine slot movement of its own; the stock re-book rides the normal booking path,
             // and the write is handled by the dedicated reversal path, not the 2×2 engine).
             OrderCorrectionType::newWith(['code' => 'cancel_reversal', 'name' => 'Cancellation reversed (reinstated)', 'pre_dispatch' => false, 'restock' => false, 'refund' => false]),

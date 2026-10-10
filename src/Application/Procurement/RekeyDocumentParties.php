@@ -78,7 +78,7 @@ final class RekeyDocumentParties
         PurchaseOrder::class => ['buyer_party_id', 'ship_to_party_id', 'supplier_party_id'],
         Supplier::class      => ['current_party_id'],
         // The decision log is append-only, but a repoint is not an amendment: the row still records
-        // the same judgement about the same facts. Omitting it would leave a retirement attached to
+        // the same judgment about the same facts. Omitting it would leave a retirement attached to
         // a key the party no longer has, which reads as "no decision" — a party silently
         // un-retiring itself is exactly what the sidecar exists to prevent.
         DocumentPartyDecision::class => ['party_hash'],

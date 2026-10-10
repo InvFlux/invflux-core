@@ -18,7 +18,7 @@ use Nandan108\Attrecord\Record;
  *
  * **This name is internal and never printed.** Orders reference content, not names, so renaming is
  * always safe and needs no lock: no supplier copy changes, and no order's meaning moves. What a
- * supplier sees, where an artefact carries a reference at all, is {@see Terms::$public_ref}, which
+ * supplier sees, where an artifact carries a reference at all, is {@see Terms::$public_ref}, which
  * is a different thing under different rules — unique forever and fixed once assigned.
  *
  * **Once used, the handle is indestructible.** An order stores the interned hash and no version

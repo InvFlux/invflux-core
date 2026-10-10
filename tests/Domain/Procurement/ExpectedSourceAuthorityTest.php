@@ -94,7 +94,7 @@ final class ExpectedSourceAuthorityTest extends TestCase
      * exactly where overwriting is least defensible, so an unknown value is treated as the
      * strongest claim rather than the weakest.
      */
-    public function testAnUnrecognisedHolderIsNotTrampled(): void
+    public function testAnUnrecognizedHolderIsNotTrampled(): void
     {
         self::assertFalse(ExpectedSourceAuthority::mayWrite(99, PurchaseOrderLine::EXPECTED_SOURCE_MANUAL));
     }

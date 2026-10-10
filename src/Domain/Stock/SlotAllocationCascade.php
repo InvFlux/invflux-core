@@ -75,7 +75,7 @@ final class SlotAllocationCascade
     }
 
     /**
-     * Units of a `ctd`-committed quantity that may move to `atp` when their demand is cancelled.
+     * Units of a `ctd`-committed quantity that may move to `atp` when their demand is canceled.
      *
      * A cancellation frees `qty` units currently in `ctd` and removes their demand. The cap exists
      * only to protect a `ctd` **deficit** from surfacing phantom sellable stock.

@@ -359,7 +359,7 @@ not requirements for every adapter.
   that value into a child position (`wh1` becomes `wh1/unassigned`) and mints a new parent above
   it to take the vacated code. Slot ids are unchanged, so `inventory_state` and the ledger are
   not rewritten and the history re-reads under the longer name; a `location_hierarchised` row
-  records the relabelling.
+  records the relabeling.
 
 ## Design Boundaries
 

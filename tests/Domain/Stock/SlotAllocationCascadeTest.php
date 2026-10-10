@@ -110,7 +110,7 @@ final class SlotAllocationCascadeTest extends TestCase
 
     public function testReleaseNeverExceedsTheFreedQuantity(): void
     {
-        // Large surplus, but only 3 units were cancelled → at most 3 move.
+        // Large surplus, but only 3 units were canceled → at most 3 move.
         self::assertSame(3, SlotAllocationCascade::releasableFromCtd(qty: 3, atp: 0, res: 0, ctd: 20, demand: 0));
     }
 }

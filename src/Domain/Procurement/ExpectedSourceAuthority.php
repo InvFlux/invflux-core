@@ -47,7 +47,7 @@ final class ExpectedSourceAuthority
      * Null means unclaimed, so anyone may take it. Equal ranks may write: a source refreshing its
      * own figure from a later document of the same kind is the ordinary case, not a conflict.
      *
-     * An unrecognised holder is refused. Something wrote that value meaning something by it, and a
+     * An unrecognized holder is refused. Something wrote that value meaning something by it, and a
      * number this policy cannot place is exactly the situation where overwriting is least safe.
      */
     public static function mayWrite(?int $holder, int $claimant): bool

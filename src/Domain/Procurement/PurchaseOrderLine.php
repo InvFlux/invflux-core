@@ -7,6 +7,7 @@ namespace Nandan108\InvFlux\Domain\Procurement;
 use Nandan108\Attrecord\Attribute\Column;
 use Nandan108\Attrecord\Attribute\Index;
 use Nandan108\Attrecord\Attribute\LockTier;
+use Nandan108\Attrecord\Attribute\PrimaryKey;
 use Nandan108\Attrecord\Attribute\Relation;
 use Nandan108\Attrecord\Attribute\Table;
 use Nandan108\Attrecord\Enum\ColumnType;
@@ -27,11 +28,20 @@ use Nandan108\InvFlux\Domain\Subject\Subject;
  * No PO-line ↔ order-line FK (the SO→PO link is out of scope; demand→supply rides the
  * `sup.atp` reservation + the ledger PO ref).
  *
+ * **Keyed by its order and its product, `(po_id, subject_id)` — there is no surrogate id.** An order
+ * carries at most one line per product, so the pair already names the line, and every table that
+ * refers to a line carries both columns: a reference to a line of *another* order, or to a line whose
+ * product differs from the referrer's, is then unrepresentable rather than merely invalid. A line may
+ * give up its surrogate only because the ledger never cites one (a movement cites a document through a
+ * single-column reference, which a composite key fits in neither lane). A line's product is fixed for
+ * its life: correcting it means removing the line and adding another, never changing the key.
+ *
  * @api
  *
  * @psalm-suppress PossiblyUnusedProperty Properties are hydrated by attrecord from row data.
  */
 #[Table(name: 'invflux_po_lines')]
+#[PrimaryKey(columns: ['po_id', 'subject_id'])]
 #[LockTier(34)]
 final class PurchaseOrderLine extends Record
 {
@@ -41,7 +51,7 @@ final class PurchaseOrderLine extends Record
      *
      * The set is closed and core's: each names a *kind of document or act* that can establish what
      * is coming, and an add-on that introduces a new one is claiming an authority the arbitration
-     * has to know about, which is not something to discover from an unrecognised integer.
+     * has to know about, which is not something to discover from an unrecognized integer.
      */
     public const EXPECTED_SOURCE_ORDERED = 1;
     public const EXPECTED_SOURCE_MANUAL = 2;
@@ -49,13 +59,20 @@ final class PurchaseOrderLine extends Record
     public const EXPECTED_SOURCE_SHIPMENT = 4;
     public const EXPECTED_SOURCE_INVOICE = 5;
 
-    #[Column(ColumnType::IntUnsigned, autoIncrement: true)]
-    public ?int $id = null;
-
+    /**
+     * The order this line belongs to, and the key's leading member.
+     *
+     * A second line for a product is never a need. An order has one arrival date and a line one price,
+     * a different ship-to is a different order, and a delivery that arrives in pieces is attributed to
+     * the one line, so a repeat buys nothing except a question every reader has to guess at: which of
+     * the two does a delivery belong to? Split planned dates for one product, if they are ever wanted,
+     * are a schedule beneath the line, never a second line. Leading the key, this column also serves
+     * every lookup of an order's lines and the foreign key on it.
+     */
     #[Column(ColumnType::IntUnsigned)]
-    #[Index('idx_po')]
     public int $po_id = 0;
 
+    /** The product ordered, and the key's second member. Fixed for the line's life. */
     #[Column(ColumnType::IntUnsigned)]
     #[Index('idx_subject')]
     public int $subject_id = 0;
@@ -67,8 +84,8 @@ final class PurchaseOrderLine extends Record
      * its inputs until they do.
      *
      * The two inheritances differ in one way that matters to every reader of this column. A price
-     * inherits a *stored scalar* the supplier catalogue holds, so it moves only when someone edits
-     * the catalogue. A quantity inherits a *computation over live stock* — available, on-order, the
+     * inherits a *stored scalar* the supplier catalog holds, so it moves only when someone edits
+     * the catalog. A quantity inherits a *computation over live stock* — available, on-order, the
      * low-stock threshold — so it moves with every sale and every other order. That is why the figure
      * must be materialised into this column the moment the document becomes an external commitment:
      * a quantity a supplier has been told is a promise, and a promise that keeps recomputing is not
@@ -134,7 +151,7 @@ final class PurchaseOrderLine extends Record
      * Remainder written off by a close-short finalize (the supplier won't send the rest). Recorded
      * rather than silently dropped, and kept separate from `qty_requested` so the order quantity (what
      * we actually ordered) stays an untouched audit fact while `qty_open` still zeroes out. Default 0;
-     * only a close-short sets it — the column is reserved ahead of the behaviour that writes it.
+     * only a close-short sets it — the column is reserved ahead of the behavior that writes it.
      */
     #[Column(ColumnType::IntUnsigned, default: 0, comment: 'qty written off by close-short; subtracted in qty_open so a short PO reads as fully resolved')]
     public int $qty_closed_short = 0;
@@ -168,7 +185,7 @@ final class PurchaseOrderLine extends Record
 
     /**
      * Supplier quote at PO time, in the PO currency — **always the net price**, after any line
-     * discount. Null = inherit the supplier catalogue price until the order is issued.
+     * discount. Null = inherit the supplier catalog price until the order is issued.
      */
     #[Column(ColumnType::Decimal, precision: 10, scale: 4, nullable: true)]
     public ?string $unit_cost = null;
@@ -227,10 +244,20 @@ final class PurchaseOrderLine extends Record
     #[Column(ColumnType::VarChar, length: 500, nullable: true)]
     public ?string $note = null;
 
-    #[Column(ColumnType::DateTime, precision: 6)]
+    /**
+     * Where the line sits in its order: the grid, the document and every read of the order's lines
+     * follow it. Assigned in the order lines are added, and a separate fact from {@see $created_at},
+     * which only says when — two lines saved together can share a second, and a position is what a
+     * reorder changes. Not part of the key and not unique: two lines that tie are ordered by product.
+     */
+    #[Column(ColumnType::SmallIntUnsigned, default: 0)]
+    public int $position = 0;
+
+    /** When the line was added, to the second. Its place in the order is {@see $position}, not this. */
+    #[Column(ColumnType::DateTime)]
     public ?\DateTimeImmutable $created_at = null;
 
-    #[Column(ColumnType::DateTime, precision: 6)]
+    #[Column(ColumnType::DateTime)]
     public ?\DateTimeImmutable $updated_at = null;
 
     #[Relation(

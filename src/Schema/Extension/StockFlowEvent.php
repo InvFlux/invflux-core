@@ -70,6 +70,16 @@ final class StockFlowEvent
      */
     public const ORDER_DISPATCHED = 'order.dispatched';
 
+    /**
+     * A dispatch is undone — the shipment was confirmed by mistake and the goods never left. The
+     * units {@see ORDER_DISPATCHED} took out are committed to the order again.
+     *
+     * Bound as the inverse of whatever dispatch is bound to, so **an add-on that rebinds dispatch
+     * rebinds this too**: with dispatch moving units into a transit leg, a reversal that recreated
+     * them in `ctd` would count the same units twice.
+     */
+    public const ORDER_DISPATCH_REVERSED = 'order.dispatch_reversed';
+
     /** A pre-shipment correction returns committed units to availability. */
     public const CORRECTION_RESTOCK = 'correction.restock';
 
@@ -113,6 +123,20 @@ final class StockFlowEvent
      * "received from suppliers" figure from counting stock nobody supplied.
      */
     public const STOCK_INTAKE_COUNTED = 'stock.intake_counted';
+
+    /**
+     * A posted receipt is corrected down: it recorded units that never arrived, so they come back
+     * out. Bound by default to the write-off cascade, which takes free stock first, then live holds,
+     * then commitments — a correction may leave orders short, which is the true state, rather than
+     * be refused.
+     */
+    public const GOODS_RECEIPT_CORRECTED_DOWN = 'goods_receipt.corrected_down';
+
+    /**
+     * A posted receipt is corrected up: units arrived that it did not record. Bound by default to
+     * the write-in cascade, like the receipt itself.
+     */
+    public const GOODS_RECEIPT_CORRECTED_UP = 'goods_receipt.corrected_up';
 
     /**
      * Stock is added or removed by an operator rather than by trade.

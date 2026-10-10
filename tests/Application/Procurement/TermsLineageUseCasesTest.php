@@ -29,7 +29,7 @@ final class TermsLineageUseCasesTest extends TestCase
         $this->memory = new InMemoryTermsRepository();
     }
 
-    public function testANewSetStartsAtVersionOneWithItsTextNormalised(): void
+    public function testANewSetStartsAtVersionOneWithItsTextNormalized(): void
     {
         $lineage = (new CreateTermsLineage($this->repo()))('  Standard terms ', "1. Net 30.   \r\n");
 
@@ -48,7 +48,7 @@ final class TermsLineageUseCasesTest extends TestCase
 
     /**
      * An unedited copy would share its source's text and so be born in use. Differing only in
-     * whitespace the normaliser removes is still unedited — the case a naive string comparison misses.
+     * whitespace the normalizer removes is still unedited — the case a naive string comparison misses.
      */
     public function testACopyMustActuallyDiffer(): void
     {

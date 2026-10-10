@@ -27,7 +27,7 @@ namespace Nandan108\InvFlux\Domain\Procurement;
  *
  * - **a net price typed directly replaces the discount** — the operator has stated the answer;
  * - **a discount comes off a price** — the list price given with it, else the line's own list price,
- *   else its current net, else a fallback (the catalogue price an unpriced line inherits);
+ *   else its current net, else a fallback (the catalog price an unpriced line inherits);
  * - **clearing the discount keeps the list price as the net** — the price before the discount is what
  *   is left once there is no discount;
  * - **a list price alone keeps the discount** it already has, recomputing the net; with no discount it
@@ -64,7 +64,7 @@ final class LinePrice
      *
      * @param int         $decimals the decimals the supplier prices in; the net is rounded to them
      * @param string|null $base     the price to take the discount off, when the same edit states one
-     * @param string|null $fallback the price an unpriced line inherits (a catalogue price)
+     * @param string|null $fallback the price an unpriced line inherits (a catalog price)
      *
      * @throws \InvalidArgumentException when a discount has no price to come off, or is out of range
      */
@@ -164,13 +164,13 @@ final class LinePrice
         }
     }
 
-    /** A non-negative price, normalised to the price column's scale. */
+    /** A non-negative price, normalized to the price column's scale. */
     private static function price(string $value): string
     {
         return self::format(self::scaled($value, self::PRICE_SCALE), self::PRICE_SCALE);
     }
 
-    /** A discount from 0 up to (not including) 100, normalised to the discount column's scale. */
+    /** A discount from 0 up to (not including) 100, normalized to the discount column's scale. */
     private static function discount(string $value): string
     {
         $units = self::scaled($value, self::PCT_SCALE);

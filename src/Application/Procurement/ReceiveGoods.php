@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Nandan108\InvFlux\Application\Procurement;
 
 use Nandan108\Attrecord\LockSet;
+use Nandan108\Attrecord\RawSql;
 use Nandan108\Attrecord\RecordSet;
+use Nandan108\InvFlux\Application\Costing\WeightedAverage;
 use Nandan108\InvFlux\Contracts\Inventory\InventoryStore;
+use Nandan108\InvFlux\Contracts\Inventory\UnbackedClaimReader;
 use Nandan108\InvFlux\Domain\Procurement\CostSource;
 use Nandan108\InvFlux\Domain\Procurement\GoodsReceipt;
 use Nandan108\InvFlux\Domain\Procurement\PurchaseOrder;
@@ -44,7 +47,7 @@ use Nandan108\InvFlux\Schema\SlotSpaceFactory;
  * commit (or roll back) together inside a single `InventoryStore::transactional()`. Domain
  * entities are locked first via {@see LockSet::acquire()} — SubjectCost (tier 32) →
  * PurchaseOrder (33) → PurchaseOrderLine (34) — and the inventory-state locks are taken
- * afterwards by the batch movement, honouring the domain-first / inventory-second
+ * afterwards by the batch movement, honoring the domain-first / inventory-second
  * lock order. LockSet runs on the same session that owns the transaction (the shared
  * request session that every Record and the InventoryStore are bound to at bootstrap), so
  * its `FOR UPDATE` locks are held for the transaction's duration.
@@ -71,7 +74,45 @@ final class ReceiveGoods
         private readonly InventoryStore $inventory,
         private readonly SlotSpaceAssembler $slotSpaceAssembler,
         private readonly string $baseCurrency,
+        // Optional on purpose: an adapter that tracks no orders has nothing to answer with, and a
+        // receipt then lands entirely on availability.
+        private readonly ?UnbackedClaimReader $unbackedClaims = null,
     ) {
+    }
+
+    /**
+     * The write-in cascade's two caps for these subjects, as the execution context it reads them from.
+     *
+     * Read inside the receipt's transaction but not locked against: a checkout that settles between
+     * this read and the movement leaves the split one order stale, which the hourly shortfall pass
+     * corrects. What it cannot do is over-commit — every cap is a ceiling on units that are being
+     * created regardless, so a stale figure only changes which state they land in.
+     *
+     * @param list<int> $subjectIds
+     *
+     * @return array<string, array<int, int>>
+     */
+    private function unbackedClaimCaps(array $subjectIds): array
+    {
+        if (null === $this->unbackedClaims || [] === $subjectIds) {
+            return [];
+        }
+
+        $committed = [];
+        $reserved = [];
+        foreach ($this->unbackedClaims->unbackedClaims($subjectIds) as $subjectId => $claims) {
+            if ($claims['committed'] > 0) {
+                $committed[$subjectId] = $claims['committed'];
+            }
+            if ($claims['reserved'] > 0) {
+                $reserved[$subjectId] = $claims['reserved'];
+            }
+        }
+
+        return array_filter([
+            SlotSpaceFactory::CONTEXT_DEFICITS          => $committed,
+            SlotSpaceFactory::CONTEXT_RESERVED_DEFICITS => $reserved,
+        ]);
     }
 
     /**
@@ -135,12 +176,20 @@ final class ReceiveGoods
         // may draw on are already locked.
         self::assertCostIsStatable($receipt, $lines);
 
-        // Null on a source-less intake, which counts against no ordered line — filtered out rather
-        // than defaulted, so an empty list means "no ordered lines to touch" and nothing else.
-        $poLineIds = array_values(array_unique(array_filter(array_map(
-            static fn (ReceiptLine $line): ?int => $line->po_line_id,
-            $lines,
-        ), static fn (?int $id): bool => null !== $id)));
+        // The ordered lines this receipt counts against, each named by its whole key. A line with
+        // no order (a source-less intake, or another backing) counts against none and is left out,
+        // so an empty list means "no ordered lines to touch" and nothing else.
+        /** @var array<string, array{po_id: int, subject_id: int}> $poLineKeys */
+        $poLineKeys = [];
+        foreach ($lines as $line) {
+            if (null !== $line->po_id) {
+                $poLineKeys[$line->po_id.':'.$line->subject_id] = ['po_id' => $line->po_id, 'subject_id' => $line->subject_id];
+            }
+        }
+        $poLineKeys = array_values($poLineKeys);
+        // The orders those lines belong to — read from the lines, not from the receipt's source,
+        // because a receipt backed by a shipment notice can count against several orders at once.
+        $poIds = array_values(array_unique(array_map(static fn (array $key): int => $key['po_id'], $poLineKeys)));
 
         // Every subject with units actually arriving. Drives the lock set, the movement and the WAC;
         // qty<=0 lines carry no movement and so no lock either.
@@ -173,7 +222,8 @@ final class ReceiveGoods
             $actor,
             $location,
             $fxRate,
-            $poLineIds,
+            $poLineKeys,
+            $poIds,
             $subjectIds,
             $costAreaId,
             $connection,
@@ -189,12 +239,11 @@ final class ReceiveGoods
             //    skips an empty target without a query, and declaring them keeps one acquisition
             //    order for every caller, which is the property the tier ordering exists to give.
             //
-            //    The order to lock is the receipt's source, and `$poLineIds` is what says whether
-            //    to: a receipt line references an ordered line only when the receipt answers an
-            //    order, so a non-empty list means `source_id` is a purchase-order id. That
-            //    invariant is what lets this read the id without resolving the ref type — and it
-            //    is why an add-on's own source (an advance shipping notice, whose lines reference
-            //    its own) locks nothing here and takes its own locks in its own tier.
+            //    The orders to lock are the ones the receipt's lines name, which is also what says
+            //    whether to lock any: a receipt line names an order only when a purchase order backs
+            //    it. Reading them from the lines rather than the receipt's source is what keeps this
+            //    right when the backing is not itself an order (a shipment notice covering several);
+            //    that backing's own rows are its owner's to lock, in its own tier.
             // A SubjectCost row is named by its whole key, so the cost area resolved above rides
             // into the lock rather than being applied afterwards. That is what makes the scoping
             // structural instead of a filter: a figure for the same subject in another area is a
@@ -204,8 +253,8 @@ final class ReceiveGoods
                     static fn (int $id): array => ['subject_id' => $id, 'cost_area_id' => $costAreaId],
                     $subjectIds,
                 ),
-                PurchaseOrder::class     => [] === $poLineIds ? [] : [(int) $receipt->source_id],
-                PurchaseOrderLine::class => $poLineIds,
+                PurchaseOrder::class     => $poIds,
+                PurchaseOrderLine::class => $poLineKeys,
             ]);
 
             /** @var array<int, SubjectCost> $existingCosts */
@@ -245,11 +294,18 @@ final class ReceiveGoods
             //    (bulk inside recordReceipt).
             $saved = $this->purchaseOrders->recordReceipt($receipt, $lines);
 
-            // 4. Post the write-in for every received subject in ONE batch flow
-            //    (`nil → {warehouse}.atp`, ref = the goods_receipt). `write_in` is all-create, so
-            //    executeBatchFlowFromStorage runs it without reading prior state. The receiving
-            //    warehouse rides in as the flow's `location` param; no `deficit` is supplied, so the
-            //    cascade's ctd step caps at 0 and the whole flow collapses to `create(atp)`.
+            // 4. Post the write-in for every received subject in ONE batch flow (ref = the
+            //    goods_receipt). `write_in` is all-create, so executeBatchFlowFromStorage runs it
+            //    without reading prior state. The receiving warehouse rides in as the flow's
+            //    `location` param.
+            //
+            //    The units back what is already claimed before they are promised to anyone new:
+            //    committed orders that are short, then live checkouts holding quantity nothing
+            //    backs, then availability. Landing everything on availability instead — and booking
+            //    the backorders in a later pass — leaves a window in which the units a paid order
+            //    was waiting for are on sale to the next customer. How much each subject owes is
+            //    the order domain's to say, per subject, so it rides in the execution context; with
+            //    nobody to ask, every cap is 0 and the flow collapses to `create(atp)`.
             //    The ref points at the PROXIMATE source doc (this receipt), not the PO — a clean
             //    1:1 cost join for the valued-movement stream (ledger → goods_receipt →
             //    receipt_lines.unit_cost_snapshot); grouping by the ordering document stays one
@@ -275,6 +331,7 @@ final class ReceiveGoods
                     params: [SlotSpaceFactory::PARAM_LOCATION => $location],
                     reference: new EntityReference('goods_receipt', (int) $saved->id),
                     actor: $actor,
+                    executionContext: $this->unbackedClaimCaps(array_keys($receivedQtyBySubject)),
                     quantitiesBySubjectId: $receivedQtyBySubject,
                 ));
             }
@@ -283,7 +340,7 @@ final class ReceiveGoods
             //    save. On-hand is read AFTER the movement — under the inventory-state locks
             //    just taken — and the pre-receipt on-hand derived by subtracting the
             //    received units, so the weight is race-free without a second lock tier.
-            $costs = $this->recomputeWeightedAverageCosts(
+            [$costs, $before] = $this->recomputeWeightedAverageCosts(
                 $subjectIds,
                 $costAreaId,
                 $receivedQtyBySubject,
@@ -294,6 +351,11 @@ final class ReceiveGoods
             if ([] !== $costs) {
                 (new RecordSet($costs))->upsertAll();
             }
+
+            // 6. Stamp what the weighting read onto the receipt's lines, so the receipt can say what
+            //    it left behind. Known only now — the on-hand is read after the movement, under its
+            //    locks — so it is written after the lines, in one statement for the whole receipt.
+            self::stampSnapshot((int) $saved->id, $before);
 
             return $saved;
         };
@@ -345,7 +407,7 @@ final class ReceiveGoods
     }
 
     /**
-     * Refuse a source-less intake whose reason cannot be honoured — before anything is locked.
+     * Refuse a source-less intake whose reason cannot be honored — before anything is locked.
      *
      * Two of the four cost sources can fail, and they fail for opposite reasons. {@see CostSource::Entered}
      * fails because only the operator holds the number and they did not give it; {@see CostSource::Derived}
@@ -438,11 +500,14 @@ final class ReceiveGoods
      * still moves stock but is left out of both costed totals, so it neither establishes nor dilutes
      * the weighted average — the subject simply keeps the cost basis it had.
      *
+     * Public, with {@see WeightedAverage::blend()}, so a reader showing what a receipt left behind
+     * (from `ReceiptLine::$on_hand_before` / `$cost_before`) aggregates exactly as the posting did.
+     *
      * @param list<ReceiptLine> $lines
      *
      * @return array{array<int, int>, array<int, int>, array<int, float>}
      */
-    private static function aggregateBySubject(array $lines, float $fxRate): array
+    public static function aggregateBySubject(array $lines, float $fxRate): array
     {
         $receivedQtyBySubject = [];   // subject_id => total received qty
         $costedQtyBySubject = [];     // subject_id => received qty carrying a unit cost
@@ -486,7 +551,10 @@ final class ReceiveGoods
      * @param array<int, float>       $costedValueBySubject
      * @param array<int, SubjectCost> $existingCosts
      *
-     * @return list<SubjectCost>
+     * Returns the rows to save, and per received subject the on-hand before (unclamped) and the
+     * cost weighted against
+     *
+     * @return array{0: list<SubjectCost>, 1: array<int, array{0: int, 1: ?string}>}
      */
     private function recomputeWeightedAverageCosts(
         array $subjectIds,
@@ -501,22 +569,28 @@ final class ReceiveGoods
 
         $now = new \DateTimeImmutable();
         $costs = [];
+        $before = [];
         foreach ($subjectIds as $subjectId) {
+            $receivedQty = $receivedQtyBySubject[$subjectId] ?? 0;
+            // Unclamped for the record; WeightedAverage::blend() treats a short position as nothing
+            // to weight, which is the clamp the average itself needs.
+            $onHandBefore = ($onHandAfter[$subjectId] ?? $receivedQty) - $receivedQty;
+            $existing = $existingCosts[$subjectId] ?? null;
+            // Weight the existing on-hand against the WAC if set, else the merchant-seeded
+            // seed_cost (so a valuation seed blends into the *first* receipt instead of being
+            // silently discarded). With neither, the receipt cost establishes the WAC.
+            $priorCost = $existing?->weighted_avg_cost ?? $existing?->seed_cost;
+            $before[$subjectId] = [$onHandBefore, $priorCost];
+
             $costedQty = $costedQtyBySubject[$subjectId] ?? 0;
             if ($costedQty <= 0) {
                 continue; // no priced units this receipt → nothing to weight
             }
             $costedValue = $costedValueBySubject[$subjectId] ?? 0.0;
-            $receivedQty = $receivedQtyBySubject[$subjectId] ?? 0;
-            $onHandBefore = max(0, ($onHandAfter[$subjectId] ?? $receivedQty) - $receivedQty);
 
-            $cost = $existingCosts[$subjectId]
+            $cost = $existing
                 ?? SubjectCost::newWith(['subject_id' => $subjectId, 'cost_area_id' => $costAreaId]);
-            // Weight the existing on-hand against the WAC if set, else the merchant-seeded
-            // seed_cost (so a valuation seed blends into the *first* receipt instead of being
-            // silently discarded). With neither, the receipt cost establishes the WAC.
-            $priorCost = $cost->weighted_avg_cost ?? $cost->seed_cost;
-            $cost->weighted_avg_cost = self::weightedAverageCost($onHandBefore, $priorCost, $costedQty, $costedValue);
+            $cost->weighted_avg_cost = WeightedAverage::blend($onHandBefore, $priorCost, $costedQty, $costedValue);
             // Ground the WAC in its currency (base). A cost amount without a currency silently changes
             // meaning if the store base ever changes; storing it makes that a detectable migration.
             $cost->cost_currency = $this->baseCurrency;
@@ -524,28 +598,35 @@ final class ReceiveGoods
             $costs[] = $cost;
         }
 
-        return $costs;
+        return [$costs, $before];
     }
 
     /**
-     * Weighted-average cost (4-decimal string) after a costed receipt:
-     * `WAC = (onHandBefore·priorCost + costedValue) / (onHandBefore + costedQty)`.
+     * Write each received product's on-hand before and weighted-against cost onto the receipt's
+     * lines: one `UPDATE … SET col = CASE subject_id …` scoped to the receipt, never a statement per
+     * product.
      *
-     * `$priorCost` is the cost to weight the prior on-hand against (the live WAC, or a seeded
-     * seed_cost baseline). With no prior cost or no prior stock to weight against, the receipt's
-     * own unit cost (`costedValue / costedQty`) establishes the WAC. `$costedQty` must be > 0 (the
-     * caller skips uncosted subjects). Float math + 4-decimal formatting (the codebase has no bcmath);
-     * good enough for Essentials valuation, revisit if exact decimal accumulation is needed.
+     * @param array<int, array{0: int, 1: ?string}> $before
      */
-    public static function weightedAverageCost(int $onHandBefore, ?string $priorCost, int $costedQty, float $costedValue): string
+    private static function stampSnapshot(int $receiptId, array $before): void
     {
-        if (null === $priorCost || $onHandBefore <= 0) {
-            return number_format($costedValue / (float) $costedQty, 4, '.', '');
+        if ([] === $before) {
+            return;
+        }
+        $onHandCase = '';
+        $costCase = '';
+        $onHandParams = [];
+        $costParams = [];
+        foreach ($before as $subjectId => [$onHand, $cost]) {
+            $onHandCase .= ' WHEN ? THEN ?';
+            $costCase .= ' WHEN ? THEN ?';
+            array_push($onHandParams, $subjectId, $onHand);
+            array_push($costParams, $subjectId, $cost);
         }
 
-        $weighted = ((float) $onHandBefore * (float) $priorCost + $costedValue)
-            / (float) ($onHandBefore + $costedQty);
-
-        return number_format($weighted, 4, '.', '');
+        ReceiptLine::updateWhere([
+            'on_hand_before' => new RawSql('CASE subject_id'.$onHandCase.' END', $onHandParams),
+            'cost_before'    => new RawSql('CASE subject_id'.$costCase.' END', $costParams),
+        ], 'receipt_id = ?', [$receiptId]);
     }
 }

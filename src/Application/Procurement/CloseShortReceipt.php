@@ -86,7 +86,7 @@ final class CloseShortReceipt
             }
             $line->qty_closed_short += $open;
             $dirty[] = $line;
-            $shorted[] = ['po_line_id' => (int) $line->id, 'qty' => $open];
+            $shorted[] = ['subjectId' => $line->subject_id, 'qty' => $open];
         }
 
         if ([] !== $dirty) {

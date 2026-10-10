@@ -19,7 +19,7 @@ use Nandan108\InvFlux\Identity\RecordIdentity;
 use Nandan108\InvFlux\Util\Ulid;
 
 /**
- * One correction against an order's fulfilment.
+ * One correction against an order's fulfillment.
  *
  * Covers the full lifecycle: pre-shipment cancellations, pre-shipment write-offs,
  * late-payment shortfalls, and post-shipment returns. Per-instance fault
@@ -29,7 +29,7 @@ use Nandan108\InvFlux\Util\Ulid;
  * Lifecycle: `processed_at IS NULL` → unprocessed (engine queue); processed once stamped.
  * The correction row carries NO refund state — "owes a refund" is `refund_amount > 0`, and
  * the refund lifecycle lives entirely on order events (`refund.scheduled` →
- * `correction.refund_confirmed` / `refund.failed` / `refund.cancelled`).
+ * `correction.refund_confirmed` / `refund.failed` / `refund.canceled`).
  *
  * @api
  *
@@ -78,7 +78,7 @@ final class OrderCorrection extends Record
     #[Column(ColumnType::TinyIntUnsigned, nullable: true)]
     public ?int $reason_id = null;
 
-    #[Column(ColumnType::SmallIntUnsigned, default: 0)]
+    #[Column(ColumnType::IntUnsigned, default: 0)]
     public int $qty = 0;
 
     #[Column(ColumnType::Decimal, precision: 10, scale: 2, default: '0.00')]
@@ -105,7 +105,7 @@ final class OrderCorrection extends Record
      * creating N corrections). Carried forward to the `correction.*` and `refund.*`
      * events emitted as the correction progresses, so the timeline can group them.
      *
-     * Grouping only. To recognise a correction a re-fired hook already created, use
+     * Grouping only. To recognize a correction a re-fired hook already created, use
      * {@see $idempotency_key} — a correlation is minted fresh per attempt, so it can
      * never answer "have I done this before".
      */
@@ -132,7 +132,7 @@ final class OrderCorrection extends Record
 
     /**
      * 16-byte binary UUIDv7 FK to the *decision-tier* {@see OrderEvent} that
-     * authorised this correction (e.g. an `lpsc.resolved` event from
+     * authorized this correction (e.g. an `lpsc.resolved` event from
      * `LpscCorrectionWriter`, a future `cs.approved` from a CS workbench batch).
      *
      * Null while the correction is in the *proposed* phase — i.e. created by floor
@@ -165,8 +165,8 @@ final class OrderCorrection extends Record
     // RESTRICT there, unlike the order edge above. A correction is a settled monetary record — it
     // names a refund that was issued — so the disappearance of the line it corrects must not take
     // it with it. The projection reconciler deletes a line whose source item vanished, and the
-    // test it applies is the line's own counters; a reinstated cancellation leaves `qty_corrected`
-    // back at zero while both processed corrections survive, so those counters read "unreferenced"
+    // test it applies is the line's own counters; a reinstated cancellation leaves `qty_canceled`
+    // (and so `qty_corrected`) back at zero while both processed corrections survive, so those counters read "unreferenced"
     // for a line two refunds point at. RESTRICT makes that a refusal instead of a silent loss.
     //
     // The order edge stays CASCADE: an order genuinely going away takes its whole projection, and
@@ -196,7 +196,7 @@ final class OrderCorrection extends Record
     public ?OrderCorrectionReason $reason = null;
 
     /**
-     * The decision-tier {@see OrderEvent} that authorised this correction.
+     * The decision-tier {@see OrderEvent} that authorized this correction.
      * SetNull on delete because corrections survive an event being unwound
      * (events are append-only in practice, but the FK action is the conservative
      * choice — losing the link is preferable to cascading correction deletes).

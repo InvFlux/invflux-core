@@ -26,7 +26,7 @@ enum ReceiptReason: string
     case OpeningBalance = 'opening_balance';
 
     /** A supplier delivered without a purchase order behind it. You paid for it, so you state what. */
-    case SupplierDelivery = 'supplier_delivery';
+    case PurchaseWithoutOrder = 'purchase_without_order';
 
     /**
      * Made in-house rather than bought. The cost is what it cost to *make* (materials plus labour),
@@ -43,9 +43,6 @@ enum ReceiptReason: string
     /** Received free — a supplier sample, a donation, a promotional unit. */
     case SampleOrDonation = 'sample_or_donation';
 
-    /** Goods back from a customer outside the returns process, so no return document values them. */
-    case ReturnOutsideRma = 'return_outside_rma';
-
     /**
      * What the intake has to say about cost. The operator is asked for a figure under
      * {@see CostSource::Entered} and {@see CostSource::SeedFallback}, and never under the other two.
@@ -53,9 +50,9 @@ enum ReceiptReason: string
     public function costSource(): CostSource
     {
         return match ($this) {
-            self::OpeningBalance, self::SupplierDelivery, self::InHouseBuild => CostSource::Entered,
+            self::OpeningBalance, self::PurchaseWithoutOrder, self::InHouseBuild => CostSource::Entered,
             self::TransferIn                                                 => CostSource::Derived,
-            self::FoundStock, self::ReturnOutsideRma                         => CostSource::SeedFallback,
+            self::FoundStock                                                 => CostSource::SeedFallback,
             self::SampleOrDonation                                           => CostSource::Free,
         };
     }

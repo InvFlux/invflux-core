@@ -51,7 +51,7 @@ interface OrderEventStore
      *
      * Returns `refund.scheduled` events with `mode='auto'` whose `occurred_at <= $now`
      * (the schedule's `occurred_at` equals its `execute_at`) and which have NO terminal
-     * sibling (`correction.refund_confirmed` or `refund.cancelled`) matching on
+     * sibling (`correction.refund_confirmed` or `refund.canceled`) matching on
      * `correlation_id` + payload `scheduled_event_id`. `refund.failed` is non-terminal,
      * so a failed schedule is still returned (the caller applies the backoff gate).
      * `mode='manual'` schedules are intentionally excluded — they are settled only by

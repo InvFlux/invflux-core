@@ -62,6 +62,8 @@ final class PoStatusTest extends TestCase
             PoStatus::Submitted,
             PoStatus::Acknowledged,
             PoStatus::InTransit,
+            // At the dock but uncounted: nothing entered on-hand, so the units are still on the way.
+            PoStatus::Arrived,
             PoStatus::InReception,
             PoStatus::PartiallyReceived,
         ] as $open) {
@@ -79,9 +81,9 @@ final class PoStatusTest extends TestCase
 
     public function testNothingFinishedOrAbandonedCounts(): void
     {
-        // Received needs no special handling for *quantity* (qty_open is 0), but a cancelled PO
+        // Received needs no special handling for *quantity* (qty_open is 0), but a canceled PO
         // keeps a real qty_open forever — so excluding it by status is load-bearing.
-        foreach ([PoStatus::Received, PoStatus::Cancelled] as $done) {
+        foreach ([PoStatus::Received, PoStatus::Canceled] as $done) {
             self::assertFalse($done->isOpenForInbound(), $done->name.' is not stock on the way');
         }
     }

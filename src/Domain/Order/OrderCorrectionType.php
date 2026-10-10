@@ -15,7 +15,7 @@ use Nandan108\Attrecord\Record;
  * One row of the seeded order-correction-type registry.
  *
  * `code` is the stable identifier (`cancel_system`, `writeoff_defective`,
- * `return_resaleable`, …). The three boolean flags drive runtime behaviour:
+ * `return_resaleable`, …). The three boolean flags drive runtime behavior:
  * `pre_dispatch × restock` form the 2×2 that selects the slot-movement rule;
  * `refund` is the default-refund-owed flag.
  *

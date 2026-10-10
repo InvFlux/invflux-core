@@ -57,17 +57,17 @@ final class PartyFactNormalizerTest extends TestCase
     }
 
     /**
-     * A value no table recognises is left as it is rather than guessed at. Under-merging costs one
+     * A value no table recognizes is left as it is rather than guessed at. Under-merging costs one
      * duplicate row; a wrong match files a party under another country entirely.
      */
-    public function testAnUnrecognisedCountryIsNotGuessedAt(): void
+    public function testAnUnrecognizedCountryIsNotGuessedAt(): void
     {
         self::assertSame(['country' => 'freedonia'], self::project(['country' => 'Freedonia']));
     }
 
     /**
      * **Two unknown countries must stay two countries.** The tempting implementation drops a value
-     * the table cannot resolve — and then every party in an unrecognised country shares one empty
+     * the table cannot resolve — and then every party in an unrecognized country shares one empty
      * country fact, so parties that differ *only* by being in different places collapse into one
      * row. That is the merge-two-distinct-things failure, which is strictly worse than the dedup
      * that passing the value through gives up.

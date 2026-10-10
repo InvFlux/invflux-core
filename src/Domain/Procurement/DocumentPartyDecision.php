@@ -18,10 +18,10 @@ use Nandan108\Attrecord\Record;
 use Nandan108\InvFlux\Identity\RecordIdentity;
 
 /**
- * An operator's standing judgement about a {@see DocumentParty}: *this contact is no longer valid*,
+ * An operator's standing judgment about a {@see DocumentParty}: *this contact is no longer valid*,
  * or — later — *it is again*.
  *
- * **A deliberate judgement, never an inference.** A parcel comes back for reasons that have nothing
+ * **A deliberate judgment, never an inference.** A parcel comes back for reasons that have nothing
  * to do with the stated facts being wrong: recipient absent, refused, access restricted, courier
  * error. Nothing here is ever written by a delivery signal.
  *
@@ -38,7 +38,7 @@ use Nandan108\InvFlux\Identity\RecordIdentity;
  * coincidence *is* the merge, which is what the table is content-addressed for. A decision is not
  * derived from the content, so coincidence says nothing about it, and one mutable slot has to
  * discard one of two true statements: a merge runs through `insertAll(onConflict: Ignore)` and
- * resolves destination-wins, silently, so which install's judgement survives would depend on the
+ * resolves destination-wins, silently, so which install's judgment survives would depend on the
  * direction the merge was run. Two installs that each retired the same party are two rows here,
  * both true, both kept.
  *
@@ -79,7 +79,7 @@ final class DocumentPartyDecision extends Record implements AppendOnly
      * The party this is about — {@see DocumentParty::$content_hash}.
      *
      * **`#[Mutable]` on an append-only row, and the warrant is narrow: a rekey renames the party,
-     * it does not amend the judgement.** `RekeyDocumentParties` (application layer — named rather
+     * it does not amend the judgment.** `RekeyDocumentParties` (application layer — named rather
      * than imported, since the domain does not depend on it) moves a party to a new key
      * when its facts collide with a different party's; the facts are unchanged, so this row still
      * asserts what it always did about the same party — only the name for that party moved. Left
@@ -125,7 +125,7 @@ final class DocumentPartyDecision extends Record implements AppendOnly
     public ?\DateTimeImmutable $decided_at = null;
 
     /**
-     * `RESTRICT`, so a party under judgement cannot be collected out from under its own decision
+     * `RESTRICT`, so a party under judgment cannot be collected out from under its own decision
      * log. `CASCADE` would be worse than wrong here: it would delete the history *quietly*, at the
      * moment the party stopped being referenced elsewhere, which is exactly when the record of why
      * matters most.

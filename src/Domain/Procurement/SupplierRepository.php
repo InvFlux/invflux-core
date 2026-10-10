@@ -75,12 +75,12 @@ interface SupplierRepository
 
     /**
      * Hard-delete a supplier-product link. Historical PO lines snapshot their own unit cost,
-     * so removing a catalogue link never affects past orders.
+     * so removing a catalog link never affects past orders.
      */
     public function deleteSupplierProduct(SupplierProduct $link): void;
 
     /**
-     * The catalogue link for one (supplier, subject) pair, or null.
+     * The catalog link for one (supplier, subject) pair, or null.
      *
      * That pair is the row's whole identity, so this is a keyed read rather than a search, and
      * the supplier scoping is structural: a subject linked to another supplier is a different
@@ -103,13 +103,13 @@ interface SupplierRepository
     public function supplierProductsForSubject(int $subjectId): array;
 
     /**
-     * Remove a subject from every supplier catalogue — the catalogue half of the clean-delete
-     * cleanup (§5.6). Catalogue membership is not inventory (it commits nothing), so a subject can
+     * Remove a subject from every supplier catalog — the catalog half of the clean-delete
+     * cleanup (§5.6). Catalog membership is not inventory (it commits nothing), so a subject can
      * be listed by suppliers without raising a deletion blocker; when the subject is legitimately
      * deleted, those links are dropped. Historical PO lines snapshot their own unit cost, so this
      * never affects past orders. Returns the number of links removed. One set-based `DELETE`.
      */
-    public function removeSubjectFromCatalogues(int $subjectId): int;
+    public function removeSubjectFromCatalogs(int $subjectId): int;
 
     /** Insert or update a supplier contact. */
     public function saveSupplierContact(SupplierContact $contact): SupplierContact;

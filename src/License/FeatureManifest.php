@@ -12,7 +12,7 @@ use Nandan108\InvFlux\Exceptions\LicenseException;
  * The grandfather model requires `allows()` to evaluate against the
  * composition captured **at license issuance**, not against the SKU's current
  * composition. This value object is that snapshot:
- * the license server freezes the canonical catalogue for a SKU into a
+ * the license server freezes the canonical catalog for a SKU into a
  * versioned manifest, ships it inside the signed blob, and the plugin
  * answers membership from it.
  *
@@ -21,7 +21,7 @@ use Nandan108\InvFlux\Exceptions\LicenseException;
  *
  * The v0 {@see EssentialsOnlyLicenseGate} stub in the
  * adapter is the degenerate case of this VO: "manifest = current Essentials
- * catalogue, state = active".
+ * catalog, state = active".
  *
  * @api
  */

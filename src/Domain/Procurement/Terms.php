@@ -15,7 +15,7 @@ use Nandan108\Attrecord\Immutable;
 use Nandan108\Attrecord\Record;
 
 /**
- * Terms and conditions **as a document stated them** — the exact artefact a supplier received,
+ * Terms and conditions **as a document stated them** — the exact artifact a supplier received,
  * interned once and shared by every order issued under it.
  *
  * **Why this table exists.** Terms were resolved when a document was built, reading the order's own
@@ -33,7 +33,7 @@ use Nandan108\Attrecord\Record;
  *
  * **What is hashed is what PRINTS, never the body alone.** {@see $public_ref} is inside the digest
  * because it appears on the supplier's copy: two lineages with identical bodies but different
- * printed references are different artefacts and must not collapse into one row. That is also why
+ * printed references are different artifacts and must not collapse into one row. That is also why
  * the column is in the expression from this table's first migration, though nothing here populates
  * it — see the note on {@see $content_hash}.
  *
@@ -64,24 +64,24 @@ final class Terms extends Record implements Immutable
     public ?int $id = null;
 
     /**
-     * The terms as Markdown **source**, which is the artefact of record.
+     * The terms as Markdown **source**, which is the artifact of record.
      *
      * Formatting and font carry no legal weight; the text is what binds. So the source is what is
      * stored, hashed and preserved, and every rendering — the printed page, the spreadsheet cell,
      * the editor's preview — is derived from it. That dissolves rather than mitigates the worry that
      * a hash proves the source and not the pixels: the pixels were never the thing.
      *
-     * **Stored already normalised.** A prettify pass runs before the row is written, so trailing
+     * **Stored already normalized.** A prettify pass runs before the row is written, so trailing
      * whitespace cannot mint a second version of identical terms. It runs in application code and
      * never inside the digest expression, which stays dumb — it hashes the bytes it was given. A
-     * normaliser inside the expression would become part of the identity function and therefore
+     * normalizer inside the expression would become part of the identity function and therefore
      * unchangeable forever, with every stored hash shifting the day anybody improved it.
      */
     #[Column(ColumnType::Text)]
     public string $body = '';
 
     /**
-     * The reference this edition is printed under, when the artefact carries one — free text,
+     * The reference this edition is printed under, when the artifact carries one — free text,
      * because merchants arrive with document references they already use.
      *
      * **A printed reference is not the administrative name.** {@see TermsLineage::$name} is internal
@@ -118,8 +118,8 @@ final class Terms extends Record implements Immutable
      *    identically everywhere, and a foreign key may reference any unique index.
      * 2. **{@see $public_ref} and {@see $attempt} are inside the expression.** The reference because
      *    it is part of what a supplier receives, so two editions carrying different references are
-     *    different artefacts and must not collapse into one row — here from the start because it
-     *    belongs to the artefact, though the sparse form in (3) would admit it later. The attempt
+     *    different artifacts and must not collapse into one row — here from the start because it
+     *    belongs to the artifact, though the sparse form in (3) would admit it later. The attempt
      *    because it is how a collision moves: see that property.
      * 3. **The fields are hashed as a sparse JSON object, and the key order is a rule.** Joining
      *    values with a separator is ambiguous — a body ending where a reference begins
@@ -130,11 +130,11 @@ final class Terms extends Record implements Immutable
      *    assumed, because the engines implement JSON differently:
      *
      *    - **Keys must be written in length-then-lexical order** (`body` before `public_ref`).
-     *      MySQL normalises an object into that order; MariaDB preserves the order it was written
+     *      MySQL normalizes an object into that order; MariaDB preserves the order it was written
      *      in. Writing them pre-sorted is what makes the two agree — and getting it wrong would
      *      diverge *silently*, per engine, so {@see \Nandan108\InvFlux\Tests\Domain\TermsDigestTest}
      *      asserts the ordering directly.
-     *    - **A null field is removed rather than serialised**, which is what lets this table grow.
+     *    - **A null field is removed rather than serialized**, which is what lets this table grow.
      *      A field added later contributes nothing to a row that does not carry one, so existing
      *      digests survive the change and every foreign key with them — including a key that sorts
      *      into the *middle* of the existing ones. Without that, adding any column would rebuild a

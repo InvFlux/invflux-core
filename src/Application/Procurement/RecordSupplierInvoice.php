@@ -61,28 +61,32 @@ final class RecordSupplierInvoice
         $invoice->recorded_at = new \DateTimeImmutable();
         $invoice->recorded_by = $actorId;
 
+        // Within one order a line is named by its product, since an order carries one line per
+        // product. Keyed that way, a billed product finds its ordered line directly.
         $orderLines = [];
         foreach ($this->purchaseOrders->linesForPurchaseOrder((int) $po->id) as $line) {
-            $orderLines[(int) $line->id] = $line;
+            $orderLines[$line->subject_id] = $line;
         }
 
         $billed = [];
         foreach ($lines as $line) {
-            if (!isset($orderLines[$line->po_line_id])) {
-                // Billing a line this order does not have is a dispute, not a line we can value: no
-                // ordered line to attach the rate to, and no receipt that will consume it. Refused
+            if (!isset($orderLines[$line->subject_id])) {
+                // Billing a product this order does not have is a dispute, not a line we can value:
+                // no ordered line to attach the rate to, and no receipt that will consume it. Refused
                 // here rather than half-recorded; the Pro match is what has somewhere to put it.
-                throw InvalidSupplierInvoiceException::lineNotOnOrder($line->po_line_id);
+                throw InvalidSupplierInvoiceException::lineNotOnOrder($line->subject_id);
             }
-            $billed[$line->po_line_id][] = $line;
+            // Every line bills this invoice's order: the database refuses one that names another
+            // (the invoice's diamond constraint), and stating it here means a caller cannot.
+            $line->po_id = (int) $po->id;
+            $billed[$line->subject_id][] = $line;
         }
 
-        $priorLines = $this->purchaseOrders->supplierInvoiceLinesForOrderLines(array_keys($billed));
+        $priorLines = $this->purchaseOrders->supplierInvoiceLinesForOrderLines((int) $po->id, array_keys($billed));
 
         $touched = [];
-        foreach ($billed as $poLineId => $newLines) {
-            $orderLine = $orderLines[$poLineId];
-            $touched[] = $this->applyTo($orderLine, $newLines, $priorLines[$poLineId] ?? []);
+        foreach ($billed as $subjectId => $newLines) {
+            $touched[] = $this->applyTo($orderLines[$subjectId], $newLines, $priorLines[$subjectId] ?? []);
         }
 
         $saved = $this->purchaseOrders->recordSupplierInvoice($invoice, $lines, $touched);

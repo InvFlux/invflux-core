@@ -21,7 +21,7 @@ use Nandan108\InvFlux\Exceptions\SchemaException;
  * declared default. Purpose-specific routing — a goods receipt landing on a receiving dock
  * while a correction lands on the general holding leaf — needs a bin-level hierarchy to be
  * meaningful, so it belongs to the add-on that introduces one, via a resolver bound over
- * this one. An unrecognised purpose **string** throws here rather than silently resolving to
+ * this one. An unrecognized purpose **string** throws here rather than silently resolving to
  * the default: an add-on that invents a purpose must also supply a resolver that understands
  * it, and finding that out at the call is better than finding it out in the ledger.
  *

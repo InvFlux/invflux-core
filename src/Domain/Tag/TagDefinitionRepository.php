@@ -65,7 +65,7 @@ interface TagDefinitionRepository
      * Bring a retired tag back (clears `archived_at`); a no-op if already live or absent.
      *
      * The inverse of {@see archive()}, and the reason re-creating a tag whose name is taken by a
-     * retired one is offered as a restore: the definition still holds its colour, its governance
+     * retired one is offered as a restore: the definition still holds its color, its governance
      * fields and — through the assignments, which retiring never touched — its history. Minting a
      * second definition under the same name would split that history across two ids nothing can
      * later merge.

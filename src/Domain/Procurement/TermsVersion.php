@@ -31,7 +31,7 @@ use Nandan108\Attrecord\Record;
  *
  * **Two lineages may legitimately point at one interned row**, and the archive should say so: "this
  * text is known as X, and also as Y" is honest rather than a conflict. It can only happen where
- * nothing distinguishing is printed — an artefact carrying {@see Terms::$public_ref} has that
+ * nothing distinguishing is printed — an artifact carrying {@see Terms::$public_ref} has that
  * reference inside its digest, so two differently-referenced editions never share a row to begin
  * with.
  *

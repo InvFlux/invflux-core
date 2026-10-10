@@ -68,12 +68,12 @@ enum SubjectKind: string
      * components, each already a subject of its own. Nothing books against the bundle, so it holds
      * no slots, and it is {@see NonStocked}, alongside grouped and external products.
      *
-     * It still gets a subject. Every catalogue row does: the workbench operates on subjects, so a
+     * It still gets a subject. Every catalog row does: the workbench operates on subjects, so a
      * product without one is not merely stockless, it is invisible and unmanageable. "Holds no
      * stock" and "has no subject" are different claims, and only the first is true here.
      *
      * The distinction from a Kit is also structural, not just semantic: a Kit's components are a
-     * many-to-many bill of materials, so they can never be modelled as `parent_id` children the way
+     * many-to-many bill of materials, so they can never be modeled as `parent_id` children the way
      * an Aggregate's variations are.
      */
     case Kit = 'kit';
@@ -110,7 +110,7 @@ enum SubjectKind: string
      *    buys: a grouped product, or a bundle the host explodes in the cart (see {@see Kit} for the
      *    bundle that stays an order line instead).
      *
-     * Both still get subjects — the workbench operates on subjects, so a catalogue row without one
+     * Both still get subjects — the workbench operates on subjects, so a catalog row without one
      * is invisible rather than merely stockless.
      *
      * Like Unit and Kit it is a simple product or a variation (identical FK shape); parent must be

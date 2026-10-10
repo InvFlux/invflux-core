@@ -59,7 +59,7 @@ final class LicenseBlob
         return false;
     }
 
-    /** The base entitlement — the platform licence (invariant: exactly one exists). */
+    /** The base entitlement — the platform license (invariant: exactly one exists). */
     public function base(): Entitlement
     {
         foreach ($this->entitlements as $entitlement) {
@@ -76,7 +76,7 @@ final class LicenseBlob
      * in**.
      *
      * Membership and permission are separate questions, and this one is membership:
-     * a revoked or grace-exhausted licence is still a licence for that SKU, and its
+     * a revoked or grace-exhausted license is still a license for that SKU, and its
      * surfaces stay where the merchant left them while each feature degrades through
      * the revoke matrix ({@see self::permits()}). Filtering revoked entitlements out
      * here would instead take the paid UI away and put an upgrade prompt in front of
@@ -84,7 +84,7 @@ final class LicenseBlob
      * too long.
      *
      * **Display only** — see {@see LicenseGate::holds()} for why this must never
-     * gate behaviour.
+     * gate behavior.
      */
     public function holds(string $sku): bool
     {
@@ -102,7 +102,7 @@ final class LicenseBlob
      * and state-blind for the same reason.
      *
      * **Display only**, same caveat as {@see self::holds()}. Exists so a surface
-     * rendering the whole estate at once (the licences page, a SPA bootstrap
+     * rendering the whole estate at once (the licenses page, a SPA bootstrap
      * payload) doesn't have to ask SKU by SKU.
      *
      * @return list<string>

@@ -22,7 +22,7 @@ namespace Nandan108\InvFlux\Domain\Procurement;
  * **What the fold may not do is merge two different parties.** It cannot, in practice, because it
  * fires only when every other fact matches too — same street, same town, same postcode, same
  * contact. Two people are not separated by a circumflex alone. The asymmetry that governs every
- * judgement call below follows from that: **under-merging costs one duplicate row, over-merging
+ * judgment call below follows from that: **under-merging costs one duplicate row, over-merging
  * loses the fact that the two were ever stated differently, and that is unrecoverable.** Where a
  * rule is uncertain, it takes the cheap side and leaves the value alone.
  *
@@ -64,7 +64,7 @@ final class PartyFactNormalizer
      * digits, which under-merges. A code that is wrong for its country cannot merge two different
      * numbers, because it is only ever tested against numbers on a party already in that country.
      * Full E.164 would need per-country trunk-prefix rules — Italy keeps its leading zero, Spain has
-     * no trunk digit at all — and getting those wrong is how a phone normaliser starts mangling
+     * no trunk digit at all — and getting those wrong is how a phone normalizer starts mangling
      * numbers instead of comparing them.
      */
     private const DIALLING_CODES = [

@@ -22,7 +22,7 @@ namespace Nandan108\InvFlux\Domain\Tag;
  *  - {@see self::System} — no human apply/remove; set only through the programmatic
  *    path (rule engine / add-ons via the repository, bypassing the manual guard).
  *
- * The add-restricted / remove-open direction is deliberately not modelled — its real
+ * The add-restricted / remove-open direction is deliberately not modeled — its real
  * use-cases are status/task/approval concerns, not tags (see the doc's steelman).
  *
  * @api

@@ -67,24 +67,42 @@ final class OrderLineTest extends TestCase
 
         $pieces = [];
         for ($corrected = 0; $corrected < 3; ++$corrected) {
-            $line->qty_corrected = $corrected;
+            $line->qty_canceled = $corrected;
             $pieces[] = $line->refundFor(1);
         }
 
         $this->assertSame(['33.34', '33.33', '33.34'], $pieces);
         $this->assertSame(10001, array_sum(array_map(static fn (string $p): int => (int) round((float) $p * 100.0), $pieces)));
 
-        $line->qty_corrected = 0;
+        $line->qty_canceled = 0;
         $this->assertSame('100.01', $line->refundFor(3), 'all at once equals one at a time');
     }
 
     public function testRefundStopsAtWhatTheLineHasLeft(): void
     {
         $line = $this->priced(unitPrice: '10.00', discount: '0.00', ordered: 2);
-        $line->qty_corrected = 1;
+        $line->qty_canceled = 1;
 
         $this->assertSame('10.00', $line->refundFor(5));
         $this->assertSame('0.00', $line->refundFor(0));
+    }
+
+    /**
+     * The refund prorates on every corrected unit, whichever side of shipment: a returned unit has
+     * been refunded too, so the next correction is priced after it. Read from the two stored parts,
+     * so it holds on a record the database has not re-read (the generated total is stale there).
+     */
+    public function testReturnedUnitsCountTowardsTheProrationLikeCanceledOnes(): void
+    {
+        // 100.01 over three units: the third unit's share is 33.34 after two are corrected.
+        $line = $this->priced(unitPrice: '40.00', discount: '19.99', ordered: 3);
+        $line->qty_canceled = 1;
+        $line->qty_returned = 1;
+        $this->assertSame('33.34', $line->refundFor(1), 'one of each side');
+
+        $line->qty_canceled = 0;
+        $line->qty_returned = 2;
+        $this->assertSame('33.34', $line->refundFor(1), 'two returned price the next unit like two canceled');
     }
 
     public function testADiscountLargerThanTheLineRefundsNothing(): void

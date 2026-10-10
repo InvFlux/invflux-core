@@ -9,7 +9,7 @@ namespace Nandan108\InvFlux\Domain\Shipment;
  *
  * Essentials tier only ever writes {@see self::Processed} (the single happy-path
  * dispatch: one shipment, all outstanding lines, stamped at confirm time).
- * {@see self::Saved} (draft, pre-confirm), {@see self::Cancelled}, and
+ * {@see self::Saved} (draft, pre-confirm), {@see self::Canceled}, and
  * {@see self::Reversed} exist in the schema for the Pro per-shipment endpoint
  * (save-then-process, partial fulfillment, admin resend/reversal) and are not
  * produced by the Essentials path. String-backed so the value is self-describing in
@@ -24,7 +24,7 @@ enum ShipmentStatus: string
     case Processed = 'processed';
 
     /** Voided before processing (Pro). */
-    case Cancelled = 'cancelled';
+    case Canceled = 'canceled';
 
     /** Admin reversal of a processed shipment — short-pack recovery (Pro). */
     case Reversed = 'reversed';

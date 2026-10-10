@@ -35,7 +35,7 @@ final class PreShipmentWriteOffTest extends TestCase
         self::assertFalse(PreShipmentWriteOff::allows('defective', self::stock(res: 1)), 'an unpaid order ranks below this one');
     }
 
-    /** Other paid orders' units are not a substitute: cancelling this line instead is the merchant's choice. */
+    /** Other paid orders' units are not a substitute: canceling this line instead is the merchant's choice. */
     public function testADefectiveUnitMayBeWrittenOffWhileOtherPaidOrdersHoldUnits(): void
     {
         self::assertTrue(PreShipmentWriteOff::allows('defective', self::stock(ctd: 5, lineClaim: 2)));

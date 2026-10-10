@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nandan108\InvFlux\Schema;
 
+use Nandan108\InvFlux\Domain\Subject\SubjectId;
 use Nandan108\InvFlux\Flow\FlowDefinition;
 use Nandan108\InvFlux\Layer\LayeredSlotSpaceDefinition;
 use Nandan108\SlotFlow\Flow;
@@ -29,7 +30,7 @@ final class SlotSpaceFactory
     public const LAYER_PHYSICAL = 'physical';
 
     /**
-     * The `loc` value a fresh slot space is initialised with: the **root of on-hand locations**.
+     * The `loc` value a fresh slot space is initialized with: the **root of on-hand locations**.
      * Not a warehouse and not warehouse-level — warehouses are `oh`'s children once a
      * multi-location tier registers them.
      *
@@ -61,6 +62,20 @@ final class SlotSpaceFactory
     public const PARAM_DEFICIT = 'deficit';
     public const PARAM_RESERVED_DEFICIT = 'reserved_deficit';
 
+    /**
+     * The same two caps, **per subject**, for a batch.
+     *
+     * A flow param is one scalar for the whole execution, which is right for a single subject and
+     * cannot express a receipt of forty products each owing a different amount. These ride in the
+     * execution *context* instead — `[subject id => units]` — and the cap resolves its own entry from
+     * the subject the engine is executing for. A subject with no entry is capped at 0.
+     *
+     * The scalar param wins when both are present: it is the more specific statement, made by a
+     * caller executing for exactly one subject.
+     */
+    public const CONTEXT_DEFICITS = 'deficits_by_subject';
+    public const CONTEXT_RESERVED_DEFICITS = 'reserved_deficits_by_subject';
+
     private const AT_LOCATION = '{'.self::PARAM_LOCATION.'}';
     private const ANY_SLOT = '{'.self::PARAM_SLOT.'}';
 
@@ -77,6 +92,15 @@ final class SlotSpaceFactory
     public const FLOW_STOCK_ADJUST_ATP_SUB = 'stock_adjust_atp_sub';
     public const FLOW_RECONCILE_ADD = 'reconcile_add';
     public const FLOW_RECONCILE_SUB = 'reconcile_sub';
+
+    /**
+     * Undo a dispatch: the inverse of `clear_ctd` on the commercial layer, so the units it destroyed
+     * are committed to the order again. A dispatch confirmed by mistake left nothing; the goods never
+     * moved. Commercial only, like the post-dispatch restocks: the physical layer carries no per-unit
+     * state in a base install, and creating into it would open a cross-layer total the next layer
+     * check reports as drift. An add-on that keeps a physical layer rebinds this with dispatch.
+     */
+    public const FLOW_DISPATCH_REVERSAL = 'dispatch_reversal';
 
     /** Create the full layered slot-space definition with all registered flows. */
     public function createLayered(): LayeredSlotSpaceDefinition
@@ -96,7 +120,7 @@ final class SlotSpaceFactory
             // The commercial layer addresses stock at a coarse grain, and that grain spans two
             // kinds of place: warehouses, and the locations that are not warehouses and never will
             // be — supplier-side stock, transit legs, a customer holding goods within a return
-            // window. Both are selected; neither is mislabelled as the other. Contributed values
+            // window. Both are selected; neither is mislabeled as the other. Contributed values
             // carry `external`, so a base install still selects exactly one warehouse.
             DimensionDefinition::sharedRef('loc', position: 0, valueSelector: DimensionValueSelector::levels(
                 self::LEVEL_WAREHOUSE,
@@ -119,6 +143,7 @@ final class SlotSpaceFactory
             ->withFlow(FlowDefinition::define('book_recovered')->move(['stt' => Stt::ATP], ['stt' => Stt::CTD]))
             ->withFlow(self::bookDemandGrowthFlow())
             ->withFlow(FlowDefinition::define('clear_ctd')->destroy(['stt' => Stt::CTD]))
+            ->withFlow(FlowDefinition::define(self::FLOW_DISPATCH_REVERSAL)->create(['stt' => Stt::CTD]))
             ->withFlow(FlowDefinition::define('correction_restock')->move(['stt' => Stt::CTD], ['stt' => Stt::ATP]))
             ->withFlow(FlowDefinition::define('correction_writeoff_ctd')->destroy(['stt' => Stt::CTD]))
             // Post-dispatch return restock: the units already left ctd (cleared to nil on
@@ -260,7 +285,7 @@ final class SlotSpaceFactory
      * outstanding demand and surfaces as a deficit.
      *
      * **Why this revokes tentative holds and `book_recovered` does not.** The two are otherwise the
-     * same act, and the difference is whose decision is being honoured:
+     * same act, and the difference is whose decision is being honored:
      *
      * - A *late payment* recovering its claim must stop at `atp`. The `hold_stock_minutes` release
      *   already adjudicated that this order's hold had expired; falling back to `res` silently
@@ -297,7 +322,7 @@ final class SlotSpaceFactory
      */
     private static function deficitCap(FlowContext $ctx): int
     {
-        return self::numericParam($ctx, self::PARAM_DEFICIT);
+        return self::cap($ctx, self::PARAM_DEFICIT, self::CONTEXT_DEFICITS);
     }
 
     /**
@@ -310,17 +335,37 @@ final class SlotSpaceFactory
      */
     private static function reservedDeficitCap(FlowContext $ctx): int
     {
-        return self::numericParam($ctx, self::PARAM_RESERVED_DEFICIT);
+        return self::cap($ctx, self::PARAM_RESERVED_DEFICIT, self::CONTEXT_RESERVED_DEFICITS);
     }
 
-    /** One execute param read as a non-negative integer; absent / non-numeric ⇒ 0. */
-    private static function numericParam(FlowContext $ctx, string $name): int
+    /**
+     * One cap as a non-negative integer: the scalar execute param when the caller gave one, else
+     * this subject's entry in the per-subject context map, else 0.
+     *
+     * The subject is whatever the engine was executing for — a `SubjectId` on the batch path, which
+     * passes it precisely so a per-subject rule is not silently subject-blind in batch mode.
+     */
+    private static function cap(FlowContext $ctx, string $param, string $contextKey): int
     {
         /** @psalm-var mixed $params */
         $params = $ctx->context['params'] ?? null;
         /** @psalm-var mixed $value */
-        $value = \is_array($params) ? ($params[$name] ?? null) : null;
+        $value = \is_array($params) ? ($params[$param] ?? null) : null;
+        if (is_numeric($value)) {
+            return max(0, (int) $value);
+        }
 
-        return is_numeric($value) ? max(0, (int) $value) : 0;
+        /** @psalm-var mixed $bySubject */
+        $bySubject = $ctx->context[$contextKey] ?? null;
+        /** @psalm-var mixed $subject */
+        $subject = $ctx->subject;
+        $subjectId = $subject instanceof SubjectId ? $subject->id : (\is_int($subject) ? $subject : null);
+        if (!\is_array($bySubject) || null === $subjectId) {
+            return 0;
+        }
+        /** @psalm-var mixed $entry */
+        $entry = $bySubject[$subjectId] ?? null;
+
+        return is_numeric($entry) ? max(0, (int) $entry) : 0;
     }
 }

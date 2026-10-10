@@ -26,14 +26,14 @@ use Nandan108\InvFlux\Domain\Procurement\DocumentParty;
  * {@see sweep()} finds candidates by *asking what is unreferenced*, and {@see forKeys()} exists only
  * as the cheap path for a caller that already holds the outgoing key.
  *
- * **Nothing here decides what is referenced — the catalogue does, and `RESTRICT` is the backstop.**
+ * **Nothing here decides what is referenced — the catalog does, and `RESTRICT` is the backstop.**
  * `ReferenceReader` reads the live foreign keys, so a column added by a feature or an add-on is
  * counted without this class knowing it exists. The engine then refuses to delete a held row anyway,
  * which covers the one gap the read cannot: a reference committed between the check and the delete.
  * Two independent guards, and neither is a list anybody maintains.
  *
  * **The removal is one statement.** `Record::deleteUnreferenced()` puts the question inside the
- * delete — a correlated `NOT EXISTS` per referring column, read from the live catalogue — so there is
+ * delete — a correlated `NOT EXISTS` per referring column, read from the live catalog — so there is
  * no window between deciding a row is unreferenced and removing it. A two-step check-then-delete is
  * not merely more code: it leaves a gap in which a reference can be committed, and needs `RESTRICT`
  * to cover what the check could not.
@@ -52,18 +52,18 @@ final class ReapOrphanedParties
      * (fifty here), and it costs only that a just-orphaned row waits a minute for the next pass.
      *
      * Locking instead would be the wrong trade: the row is shared by potentially thousands of
-     * documents, so holding it for the duration of every issue serialises unrelated work.
+     * documents, so holding it for the duration of every issue serializes unrelated work.
      */
     public const GRACE_SECONDS = 60;
 
-    /** Rows read per page. One catalogue query covers a whole page, so this is the round-trip unit. */
+    /** Rows read per page. One catalog query covers a whole page, so this is the round-trip unit. */
     private const CHUNK = 1000;
 
     /**
      * Find parties nothing references and remove them.
      *
      * Candidates are taken by age, then narrowed by **asking the database which of them anything
-     * points at** — `ReferenceReader::referencedKeys()` reads the live foreign-key catalogue, so a
+     * points at** — `ReferenceReader::referencedKeys()` reads the live foreign-key catalog, so a
      * column added by a feature or an add-on that this code has never heard of is included for free.
      * That is the whole design: the alternative, a list of referring columns maintained by hand, is
      * the thing that goes stale the week someone adds a table.
@@ -176,7 +176,7 @@ final class ReapOrphanedParties
      * the *policy* in the callers is what stops the two drifting into different notions of
      * "unreferenced".
      *
-     * Referrers come from the live foreign-key catalogue, so a column added by a feature or an add-on
+     * Referrers come from the live foreign-key catalog, so a column added by a feature or an add-on
      * counts without this class knowing it exists — the reason nothing here maintains a list.
      *
      * @param list<int> $keys

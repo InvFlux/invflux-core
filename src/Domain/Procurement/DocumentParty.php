@@ -110,12 +110,12 @@ final class DocumentParty extends Record implements Immutable
     public string $name = '';
 
     /**
-     * The person's name in parts, when the party *is* a person rather than an organisation.
+     * The person's name in parts, when the party *is* a person rather than an organization.
      *
      * A supplier states one name — its own — so these stay null there and cost its digest nothing.
      * A customer states two, because the host holds two, and a document that can only print
      * "Jane Smith" cannot address "Ms Smith" or sort by surname. Keeping {@see $name} alongside is
-     * not redundancy: it is what a document prints, and it is what an organisation has instead.
+     * not redundancy: it is what a document prints, and it is what an organization has instead.
      */
     #[Column(ColumnType::VarChar, length: 128, nullable: true)]
     public ?string $first_name = null;
@@ -126,7 +126,7 @@ final class DocumentParty extends Record implements Immutable
     /**
      * The company line on a personal address — an employer, a reception desk, a freight forwarder.
      *
-     * Distinct from {@see $name} for an organisation party, where the company *is* the name. Here it
+     * Distinct from {@see $name} for an organization party, where the company *is* the name. Here it
      * is a second line the document prints under a person's, and losing it delivers a parcel to a
      * building that does not know who it is for.
      */

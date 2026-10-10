@@ -13,7 +13,7 @@ use Nandan108\InvFlux\Exceptions\TermsException;
  *
  * **Deleting is for a set nothing was ever issued under.** An order stores the text and no pointer to
  * the set, so the set is the only bridge from an issued order's terms back to a name someone
- * recognises; deleting a used set would leave "which terms went out on that order?" answerable only
+ * recognizes; deleting a used set would leave "which terms went out on that order?" answerable only
  * as raw text. So deleting a used set is refused, saying how many orders went out under it, and
  * archiving — which keeps it readable and takes it out of every picker — is how it is retired. Any
  * edition counts: a set whose first version went out and whose current one never did is still used.

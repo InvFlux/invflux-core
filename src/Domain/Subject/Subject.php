@@ -158,7 +158,7 @@ final class Subject extends Record
      * migration instruction rather than a permanent record, so it may be removed once every
      * database that could hold the old name has converged.
      */
-    #[Column(ColumnType::SmallIntUnsigned, nullable: true, renamedFrom: 'reorder_threshold')]
+    #[Column(ColumnType::IntUnsigned, nullable: true, renamedFrom: 'reorder_threshold')]
     public ?int $low_stock_amount = null;
 
     /**
@@ -177,10 +177,10 @@ final class Subject extends Record
      * and leaves the platform authoritative, no host field means this, so nothing is being shadowed.
      *
      * Not to be confused with a supplier's minimum order quantity, which lives on the supplier
-     * catalogue line and is a floor on *an order*; this is a floor on *the resulting position*, and
+     * catalog line and is a floor on *an order*; this is a floor on *the resulting position*, and
      * it is the difference that decides whether stock already inbound is subtracted.
      */
-    #[Column(ColumnType::SmallIntUnsigned, nullable: true)]
+    #[Column(ColumnType::IntUnsigned, nullable: true)]
     public ?int $reorder_target = null;
 
     /**

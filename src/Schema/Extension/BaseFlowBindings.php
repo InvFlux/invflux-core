@@ -59,6 +59,18 @@ final class BaseFlowBindings implements SlotSpaceContributor
                 StockFlowEvent::STOCK_INTAKE_COUNTED,
                 SlotSpaceFactory::FLOW_WRITE_IN,
                 ProcurementMovementType::STOCK_INTAKE,
+            )
+            // A receipt corrected after posting moves stock the way the receipt did, in whichever
+            // direction the mistake was, under one movement type that says the receipt was wrong.
+            ->bindEvent(
+                StockFlowEvent::GOODS_RECEIPT_CORRECTED_DOWN,
+                SlotSpaceFactory::FLOW_WRITE_OFF,
+                ProcurementMovementType::RECEIPT_CORRECTION,
+            )
+            ->bindEvent(
+                StockFlowEvent::GOODS_RECEIPT_CORRECTED_UP,
+                SlotSpaceFactory::FLOW_WRITE_IN,
+                ProcurementMovementType::RECEIPT_CORRECTION,
             );
     }
 }

@@ -22,8 +22,8 @@ final class InvalidSupplierInvoiceException extends InvFluxException
         return new self('An invoice records at least one billed line.');
     }
 
-    public static function lineNotOnOrder(int $poLineId): self
+    public static function lineNotOnOrder(int $subjectId): self
     {
-        return new self(sprintf('Invoice line bills order line %d, which is not on this purchase order.', $poLineId));
+        return new self(sprintf('Invoice line bills product %d, which is not on this purchase order.', $subjectId));
     }
 }

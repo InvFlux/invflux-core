@@ -14,7 +14,7 @@ namespace Nandan108\InvFlux\Domain\Procurement;
  * document is still reading the wrong word.
  *
  * The set is deliberately shallow: it names schemes a purchase order might have to print, and stops
- * short of modelling their internal structure. {@see self::Generic} is the honest answer for a
+ * short of modeling their internal structure. {@see self::Generic} is the honest answer for a
  * jurisdiction not listed, and reads as "Tax ID" — vague but never wrong.
  *
  * This enum is the vocabulary half of a scheme + value pair. Today a party carries one free-text

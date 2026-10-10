@@ -18,7 +18,7 @@ use Nandan108\InvFlux\Domain\Procurement\PurchaseOrderRepository;
  * subject has **no inventory blockers**: any remaining stock has been written
  * off through its real workflow, and every open procedure referencing it is
  * closed. This is a **core** concern — every platform adapter inherits the same
- * rule, because the invariant is about stock, not about any one catalogue.
+ * rule, because the invariant is about stock, not about any one catalog.
  *
  * The guard is deliberately read-only and side-effect-free: it computes a
  * verdict, it does not enforce it. Enforcement (map_meta_cap, pre_delete_post,

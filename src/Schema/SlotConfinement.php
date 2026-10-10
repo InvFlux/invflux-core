@@ -47,7 +47,7 @@ final class SlotConfinement
      * @param string                 $value       the value whose placement is constrained
      * @param string                 $axis        the dimension the constraint reads
      * @param list<non-empty-string> $allowed     the only `$axis` values `$value` may sit on
-     * @param non-empty-string       $contributor who declared it — for diagnostics, never behaviour
+     * @param non-empty-string       $contributor who declared it — for diagnostics, never behavior
      */
     public function __construct(
         string $dimension,

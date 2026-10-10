@@ -73,10 +73,10 @@ interface LicenseGate
      * Whether the install holds an entitlement for `$sku`.
      *
      * **Display only** — badges, upsell copy, which bundle to load. Never gate
-     * behaviour on it. Features are gated by key through `allows()` precisely
+     * behavior on it. Features are gated by key through `allows()` precisely
      * because the two answers legitimately disagree: a grandfathered install keeps
      * a feature whose SKU it does not hold, so a SKU check would take away
-     * something the licence still grants.
+     * something the license still grants.
      *
      * They disagree in the other direction too, and deliberately: this is a question
      * about **membership**, so it stays true through revocation and through offline

@@ -120,7 +120,7 @@ interface PurchaseOrderRepository extends DocumentPartyRepository
      *
      * @param list<PurchaseOrderLine> $lines
      *
-     * @return list<PurchaseOrderLine> the same records, with ids populated
+     * @return list<PurchaseOrderLine> the same records, as saved
      */
     public function savePurchaseOrderLines(array $lines): array;
 
@@ -131,7 +131,7 @@ interface PurchaseOrderRepository extends DocumentPartyRepository
      * Count the **non-draft, non-terminal** purchase orders that reference a subject — the
      * deletion guard's `open_procurement` check. An open PO can still move quantity (it can be
      * received, or received-but-not-yet-closed), so any status other than draft (in-prep),
-     * cancelled, or archived counts. Draft POs commit nothing and are excluded here (they are
+     * canceled, or archived counts. Draft POs commit nothing and are excluded here (they are
      * instead scrubbed by {@see removeSubjectFromDraftPurchaseOrders()} on a clean delete).
      * One aggregate query joining lines to their POs; distinct PO count.
      */
@@ -196,11 +196,13 @@ interface PurchaseOrderRepository extends DocumentPartyRepository
      * `qty_invoiced` from: a running total kept in one place would drift the moment an invoice was
      * corrected or removed, so it is summed from the documents that justify it.
      *
-     * @param list<int> $poLineIds
+     * The ordered lines are named by their order and their products, which is their key.
      *
-     * @return array<int, list<SupplierInvoiceLine>>
+     * @param list<int> $subjectIds
+     *
+     * @return array<int, list<SupplierInvoiceLine>> keyed by subject id
      */
-    public function supplierInvoiceLinesForOrderLines(array $poLineIds): array;
+    public function supplierInvoiceLinesForOrderLines(int $poId, array $subjectIds): array;
 
     /**
      * The PO's audit/history events (lifecycle transitions, receipts, close-shorts, …), oldest first —

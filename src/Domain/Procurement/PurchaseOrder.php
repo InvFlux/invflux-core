@@ -160,7 +160,7 @@ final class PurchaseOrder extends Record
      * When this order was filed away, or null while it is in the working lists.
      *
      * **Filing an order away is not one of the ways it ends, so it is not a {@see PoStatus}.** The
-     * status answers *how did this order turn out* — received, cancelled, still in flight — and an
+     * status answers *how did this order turn out* — received, canceled, still in flight — and an
      * order that is put out of sight still has an answer to that. Held in the status column it
      * would overwrite one: a received order that got archived could no longer be shown as received,
      * and nothing would remain to say that it ever was.
@@ -241,7 +241,7 @@ final class PurchaseOrder extends Record
      * the label carries no contractual weight and a pointer to it would record a filing fact at the
      * cost of a column and a join. Nothing is lost, because whatever *prints* — including a public
      * reference where one is carried — is inside the digest, so the hash identifies exactly the
-     * artefact the supplier received.
+     * artifact the supplier received.
      *
      * **This is a pointer, not a copy, and the difference is enforced by the schema.** The
      * referencing key is `ON UPDATE RESTRICT`, and the interned row's hash is a generated column, so

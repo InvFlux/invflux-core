@@ -36,7 +36,7 @@ use Nandan108\InvFlux\Exceptions\CostConversionOverflowException;
  *
  * ## Correctness properties
  *
- * - **Set-based.** Two `UPDATE`s, whatever the catalogue size — never a per-subject loop.
+ * - **Set-based.** Two `UPDATE`s, whatever the catalog size — never a per-subject loop.
  * - **Naturally idempotent.** Rows are matched on `cost_currency = $from` and stamped `$to`, so a
  *   re-run of the same conversion matches nothing. A double-submit cannot double-convert.
  * - **Ungrounded rows convert too.** A sidecar row with amounts but no `cost_currency` predates

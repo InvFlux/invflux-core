@@ -133,7 +133,7 @@ final class BlobRoundTripTest extends TestCase
         [$priv, $pub] = self::keypair();
         $env = $this->envelope($this->sign($priv, $this->payload()));
         $raw = (string) base64_decode((string) $env['payload'], true);
-        // Claim a SKU the licence does not grant — invalidates the signature over the
+        // Claim a SKU the license does not grant — invalidates the signature over the
         // original bytes.
         $raw = str_replace('"sku":"'.Entitlement::BASE_SKU.'"', '"sku":"pro"', $raw);
         $env['payload'] = base64_encode($raw);

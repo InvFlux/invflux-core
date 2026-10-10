@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Schema;
 
+use Nandan108\InvFlux\Domain\Subject\SubjectId;
 use Nandan108\InvFlux\Schema\DimensionDefinition;
 use Nandan108\InvFlux\Schema\DimensionValueDefinition;
 use Nandan108\InvFlux\Schema\DimensionValueSelectorKind;
@@ -127,6 +128,50 @@ final class SlotSpaceFactoryTest extends TestCase
 
         self::assertTrue($result->isComplete());
         self::assertSame(['oh.res' => 3, 'oh.atp' => 4], $this->byKey($result), 'the res band fills without a ctd deficit');
+    }
+
+    /**
+     * A receipt is a batch, and each product in it owes a different amount — which one scalar param
+     * cannot say. The caps therefore also ride in the execution context, keyed by subject, and each
+     * execution resolves its own entry.
+     *
+     * Two subjects against one map: the point is that subject 8's figures never reach subject 7, and
+     * a subject with no entry is capped at 0 rather than inheriting a neighbour's.
+     */
+    public function testWriteInCapsResolvePerSubjectFromTheExecutionContext(): void
+    {
+        $space = $this->commercialSpace();
+        $engine = new MovementEngine();
+        $context = [
+            SlotSpaceFactory::CONTEXT_DEFICITS          => [7 => 4, 8 => 1],
+            SlotSpaceFactory::CONTEXT_RESERVED_DEFICITS => [7 => 2],
+        ];
+
+        $forSeven = $engine->execute(new QuantityState($space), $space, SlotSpaceFactory::FLOW_WRITE_IN, 7, new SubjectId(7), appContext: $context, params: self::AT_LOC);
+        $forEight = $engine->execute(new QuantityState($space), $space, SlotSpaceFactory::FLOW_WRITE_IN, 7, new SubjectId(8), appContext: $context, params: self::AT_LOC);
+        $forNine = $engine->execute(new QuantityState($space), $space, SlotSpaceFactory::FLOW_WRITE_IN, 7, new SubjectId(9), appContext: $context, params: self::AT_LOC);
+
+        self::assertSame(['oh.ctd' => 4, 'oh.res' => 2, 'oh.atp' => 1], $this->byKey($forSeven));
+        self::assertSame(['oh.ctd' => 1, 'oh.atp' => 6], $this->byKey($forEight), 'subject 8 has no reservation entry');
+        self::assertSame(['oh.atp' => 7], $this->byKey($forNine), 'a subject absent from both maps owes nothing');
+    }
+
+    /** The scalar param is the more specific statement, so it wins over a context entry. */
+    public function testAScalarCapWinsOverThePerSubjectEntry(): void
+    {
+        $space = $this->commercialSpace();
+
+        $result = (new MovementEngine())->execute(
+            new QuantityState($space),
+            $space,
+            SlotSpaceFactory::FLOW_WRITE_IN,
+            7,
+            new SubjectId(7),
+            appContext: [SlotSpaceFactory::CONTEXT_DEFICITS => [7 => 6]],
+            params: self::AT_LOC + [SlotSpaceFactory::PARAM_DEFICIT => 2],
+        );
+
+        self::assertSame(['oh.ctd' => 2, 'oh.atp' => 5], $this->byKey($result));
     }
 
     /** A deficit ≥ the received quantity sends everything to ctd (nothing promisable yet). */

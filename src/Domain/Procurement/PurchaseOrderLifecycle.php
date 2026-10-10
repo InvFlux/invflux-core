@@ -17,21 +17,32 @@ namespace Nandan108\InvFlux\Domain\Procurement;
  * after they are built is still visible (the map is mutated in place). This is the seam a future
  * inbound-shipment (advance-notice) add-on uses to layer its own reconciliation edges on top.
  *
- * Edges (base spine). Transitions are forward-only, plus cancel/archive: cancellation is barred once
- * goods are received; archival is the terminal soft-delete reachable from received and cancelled too.
- * ACKNOWLEDGED(9) is an optional supplier-OA waypoint — the manual flip is base, and SUBMITTED →
- * IN_TRANSIT still skips it when OA isn't tracked.
+ * Edges (base spine). Transitions are forward-only, plus cancellation, which is barred once goods
+ * are received. Filing an order away is not a status but {@see PurchaseOrder::$archived_at}, so it
+ * appears nowhere below. ACKNOWLEDGED(9) and ARRIVED(13) are optional waypoints: the manual flips are
+ * base, and the direct edges around them stay for shops that do not record them.
  *
- *   IN_PREP(1)             → SUBMITTED(7), CANCELLED(19), ARCHIVED(21)
- *   SUBMITTED(7)           → ACKNOWLEDGED(9), IN_TRANSIT(11), CANCELLED(19), ARCHIVED(21)
- *   ACKNOWLEDGED(9)        → IN_TRANSIT(11), CANCELLED(19), ARCHIVED(21)
- *   IN_TRANSIT(11)         → IN_RECEPTION(13), CANCELLED(19), ARCHIVED(21)
- *   IN_RECEPTION(13)       → RECEIVED(17), PARTIALLY_RECEIVED(15), IN_TRANSIT(11), CANCELLED(19), ARCHIVED(21)
- *                            [→IN_TRANSIT = cancel an unproductive reception (nothing counted); back to pre-receive]
- *   PARTIALLY_RECEIVED(15) → IN_RECEPTION(13), RECEIVED(17)
- *   RECEIVED(17)           → ARCHIVED(21)
- *   CANCELLED(19)          → ARCHIVED(21)
- *   ARCHIVED(21)           → (terminal)
+ *   IN_PREP(1)             → SUBMITTED(7), CANCELED(21)
+ *   SUBMITTED(7)           → ACKNOWLEDGED(9), IN_TRANSIT(11), ARRIVED(13), IN_RECEPTION(15), CANCELED(21)
+ *   ACKNOWLEDGED(9)        → IN_TRANSIT(11), ARRIVED(13), IN_RECEPTION(15), CANCELED(21)
+ *   IN_TRANSIT(11)         → ARRIVED(13), IN_RECEPTION(15), CANCELED(21)
+ *   ARRIVED(13)            → IN_RECEPTION(15), IN_TRANSIT(11), PARTIALLY_RECEIVED(17), CANCELED(21)
+ *                            [→IN_TRANSIT / →PARTIALLY_RECEIVED = delivery refused at the dock: back to
+ *                             waiting, partially_received when earlier deliveries already came in]
+ *   IN_RECEPTION(15)       → RECEIVED(19), PARTIALLY_RECEIVED(17), ARRIVED(13), IN_TRANSIT(11), CANCELED(21)
+ *                            [→ARRIVED / →IN_TRANSIT = abandon an unproductive reception (nothing counted):
+ *                             back to the dock if the goods had arrived, else back to transit]
+ *   PARTIALLY_RECEIVED(17) → ARRIVED(13), IN_RECEPTION(15), RECEIVED(19)
+ *
+ * The map cannot say whether anything was received, and ARRIVED is reachable from PARTIALLY_RECEIVED,
+ * so two routes need a check the map cannot make: PARTIALLY_RECEIVED → ARRIVED → CANCELED (or on
+ * through IN_TRANSIT) would cancel an order whose goods are already in, and ARRIVED →
+ * PARTIALLY_RECEIVED on an order that never received anything would claim goods that never came.
+ * {@see \Nandan108\InvFlux\Application\Procurement\TransitionPurchaseOrder} refuses any move to
+ * CANCELED once a line has received anything (an order with goods in finishes by a close-short), and
+ * ARRIVED → PARTIALLY_RECEIVED while no line has.
+ *   RECEIVED(19)           → (terminal)
+ *   CANCELED(21)           → (terminal)
  *
  * Review states IN_REVIEW(3) / APPROVED(5) are schema-present but carry no base edges: the review
  * add-on contributes the IN_PREP → IN_REVIEW → APPROVED → SUBMITTED path plus the refuse/reopen exits
@@ -40,10 +51,11 @@ namespace Nandan108\InvFlux\Domain\Procurement;
  * edge events are edge-scoped and emitted by the add-on's own action, since two distinct edges landing
  * on the shared IN_PREP target can't both be keyed here.
  *
- * PARTIALLY_RECEIVED(11) — "keep a PO open across deliveries". Receiving one delivery of a split
+ * PARTIALLY_RECEIVED(17) — "keep a PO open across deliveries". Receiving one delivery of a split
  * shipment and parking the PO until the next is recording what physically arrived, so the whole
- * cycle is base behaviour: the *entry* edge (IN_RECEPTION → PARTIALLY_RECEIVED), the *reopen* exit
- * (→ IN_RECEPTION for the next delivery) and the *finalize* exit (→ RECEIVED, a final receipt or a
+ * cycle is base behavior: the *entry* edge (IN_RECEPTION → PARTIALLY_RECEIVED), the *reopen* exit
+ * (→ IN_RECEPTION for the next delivery, or → ARRIVED when that delivery is recorded at the dock
+ * before it is counted) and the *finalize* exit (→ RECEIVED, a final receipt or a
  * close-short) are all seeded here. Not cancellable once entered — goods are already in. What an
  * add-on layers on top is not this state but the *advance-shipment-notice* document (a governed
  * declaration each receipt reconciles against); the successive-receipt state machine itself is base.
@@ -72,13 +84,16 @@ final class PurchaseOrderLifecycle
         $this->transitions = [
             PoStatus::InPrep->value => [
                 PoStatus::Submitted,
-                PoStatus::Cancelled,
+                PoStatus::Canceled,
             ],
             PoStatus::Submitted->value => [
                 // Optional supplier-OA waypoint; the direct edge to in_transit stays for installs that
                 // don't track acknowledgements.
                 PoStatus::Acknowledged,
                 PoStatus::InTransit,
+                // An unannounced delivery recorded at the dock, before it is counted (same reasoning
+                // as the direct edge to in_reception below).
+                PoStatus::Arrived,
                 // Goods can turn up before anyone records that they shipped — an unannounced
                 // delivery against an open order is ordinary, not exceptional. The edge exists so
                 // the arrival is recorded as what it is, rather than forcing a shipment event that
@@ -86,41 +101,62 @@ final class PurchaseOrderLifecycle
                 // reception this early is a policy an add-on may impose; the lifecycle only says it
                 // is not a contradiction.
                 PoStatus::InReception,
-                PoStatus::Cancelled,
+                PoStatus::Canceled,
             ],
             PoStatus::Acknowledged->value => [
                 PoStatus::InTransit,
+                PoStatus::Arrived,
                 // Same reason as above: acknowledged and already at the door is a normal sequence.
                 PoStatus::InReception,
-                PoStatus::Cancelled,
+                PoStatus::Canceled,
             ],
             PoStatus::InTransit->value => [
+                // The goods are at the dock, not yet counted: an event, never a stock movement.
+                PoStatus::Arrived,
                 PoStatus::InReception,
-                PoStatus::Cancelled,
+                PoStatus::Canceled,
+            ],
+            // Counting starts, or the delivery is refused at the dock. Nothing entered on-hand on
+            // arrival, so a refusal is a cancellation with no stock to undo.
+            PoStatus::Arrived->value => [
+                PoStatus::InReception,
+                // This delivery is refused at the dock and the supplier sends a replacement: the
+                // order carries on and only the delivery goes back. Nothing was counted, so no stock
+                // moves.
+                PoStatus::InTransit,
+                // The same refusal on an order whose earlier deliveries came in: back to its resting
+                // state, from which the buyer waits for a replacement or closes short. Only when
+                // something was received (enforced by TransitionPurchaseOrder).
+                PoStatus::PartiallyReceived,
+                PoStatus::Canceled,
             ],
             PoStatus::InReception->value => [
                 PoStatus::Received,
                 // Keep the PO open for the next delivery of a split shipment: receive what arrived and
                 // park in partially_received. Recording a partial arrival is correctness, so this is
-                // base behaviour, not a gated one.
+                // base behavior, not a gated one.
                 PoStatus::PartiallyReceived,
-                // Cancel an unproductive reception (opened by mistake / nothing arrived, nothing counted):
-                // drop back to the resting in-transit state. The caller drops any staged WIP on the way out.
-                // No goods have moved, so this is a pure status undo — not a cancellation.
+                // Abandon an unproductive reception (opened by mistake, nothing counted): drop back to
+                // where the goods are — the dock when they had arrived, otherwise in transit. The caller
+                // picks which from the order's history and drops any staged WIP on the way out. No goods
+                // have moved, so this is a pure status undo — not a cancellation.
+                PoStatus::Arrived,
                 PoStatus::InTransit,
-                PoStatus::Cancelled,
+                PoStatus::Canceled,
             ],
             // Wind-down exits from the keep-open state: reopen to receive the next delivery, or finalize
             // (a final receipt or a close-short both land on received). Not cancellable — goods are
             // already in.
             PoStatus::PartiallyReceived->value => [
+                // The next delivery of a split shipment, recorded at the dock before it is counted.
+                PoStatus::Arrived,
                 PoStatus::InReception,
                 PoStatus::Received,
             ],
-            // Terminal: an order that has been received or cancelled has nowhere left to go.
+            // Terminal: an order that has been received or canceled has nowhere left to go.
             // Filing it out of the working lists is not a move — see PurchaseOrder::$archived_at.
             PoStatus::Received->value  => [],
-            PoStatus::Cancelled->value => [],
+            PoStatus::Canceled->value => [],
         ];
 
         $this->eventTypes = [
@@ -130,10 +166,11 @@ final class PurchaseOrderLifecycle
             PoStatus::Submitted->value          => 'po.submitted',
             PoStatus::Acknowledged->value       => 'po.acknowledged',
             PoStatus::InTransit->value          => 'po.in_transit',
+            PoStatus::Arrived->value            => 'po.arrived',
             PoStatus::InReception->value        => 'po.reception_started',
             PoStatus::PartiallyReceived->value  => 'po.partially_received',
             PoStatus::Received->value           => 'po.received',
-            PoStatus::Cancelled->value          => 'po.cancelled',
+            PoStatus::Canceled->value           => 'po.canceled',
         ];
     }
 
@@ -192,7 +229,7 @@ final class PurchaseOrderLifecycle
      *
      * @return non-empty-string
      *
-     * @throws InvalidPurchaseOrderTransition when `$to` is not a recognised target status
+     * @throws InvalidPurchaseOrderTransition when `$to` is not a recognized target status
      */
     public function eventTypeFor(PoStatus $to): string
     {

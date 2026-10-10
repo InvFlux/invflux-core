@@ -7,6 +7,7 @@ namespace Nandan108\InvFlux\Domain\Procurement;
 use Nandan108\Attrecord\Attribute\Column;
 use Nandan108\Attrecord\Attribute\Table;
 use Nandan108\Attrecord\Attribute\UniqueKey;
+use Nandan108\Attrecord\Caster\EnumCaster;
 use Nandan108\Attrecord\Enum\ColumnType;
 use Nandan108\Attrecord\Exception\RecordValidationException;
 use Nandan108\Attrecord\Record;
@@ -34,6 +35,7 @@ use Nandan108\Attrecord\Record;
  */
 #[Table(name: 'invflux_receiving_sessions')]
 #[UniqueKey('uq_receiving_session_source', columns: ['source_ref_type_id', 'source_id'])]
+#[UniqueKey('uq_receiving_session_open_key', columns: ['open_key'])]
 final class ReceivingSession extends Record
 {
     #[Column(ColumnType::IntUnsigned, autoIncrement: true)]
@@ -58,7 +60,56 @@ final class ReceivingSession extends Record
     #[Column(ColumnType::IntUnsigned, nullable: true)]
     public ?int $source_id = null;
 
-    /** Staged counts, `[{"poLineId":N,"received":N,"damaged":N}]`. Draft figures — nothing here has been checked. */
+    /**
+     * Why stock is arriving, for a session that answers no document — the same value the receipt it
+     * produces will carry, and NULL exactly when the session has a source.
+     *
+     * Chosen when the session is opened and fixed from then on. It decides what the lines owe about
+     * cost ({@see ReceiptReason::costSource()}), so a reason changed mid-count would leave staged
+     * figures the new reason refuses, or hide ones it no longer asks for.
+     */
+    #[Column(ColumnType::Enum, nullable: true)]
+    #[EnumCaster(ReceiptReason::class)]
+    public ?ReceiptReason $reason = null;
+
+    /**
+     * Who sold the goods, for stock bought without a purchase order — optional, and carried
+     * onto the receipt's own {@see GoodsReceipt::$supplier_id} when it is posted. Naming one lets the
+     * count offer that supplier's catalog and default its line costs from the catalog prices.
+     * NULL for every other reason, and for a session against a document, which names its supplier
+     * itself.
+     */
+    #[Column(ColumnType::IntUnsigned, nullable: true)]
+    public ?int $supplier_id = null;
+
+    /**
+     * The rate the count converts the supplier's catalog currency at — units of base per one
+     * supplier-currency unit, the same direction as {@see GoodsReceipt::$fx_rate}, which it becomes
+     * when the session is posted. Set only while the supplier prices in a currency other than the
+     * store base; NULL otherwise.
+     */
+    #[Column(ColumnType::Decimal, precision: 18, scale: 8, nullable: true)]
+    public ?string $cost_fx_rate = null;
+
+    /**
+     * The client's token for the request that opened this session, when it sent one.
+     *
+     * Opening a count is not naturally idempotent — two source-less sessions never collide — so a
+     * create whose response was lost, retried, would otherwise open a second count over the same
+     * goods, and posting both books them twice. The unique key makes the retry find the first.
+     * NULL for a session opened without a token, and for every session against a document, which
+     * the source pair already keeps to one.
+     */
+    #[Column(ColumnType::VarChar, length: 64, nullable: true)]
+    public ?string $open_key = null;
+
+    /**
+     * Staged counts, `[{"subjectId":N,"received":N,"damaged":N,"unitCost":"9.5000"|null,
+     * "supplierPrice":"9.5000"|null}]` — a line named by its product, the order being the session's
+     * own. The two prices are *overrides*, null where the line inherits: `unitCost` in the store base,
+     * `supplierPrice` in the supplier's currency when that differs. Both appear only on a session with
+     * a reason. Draft figures: nothing here has been checked.
+     */
     #[Column(ColumnType::Json, nullable: true)]
     public ?string $lines = null;
 
@@ -98,12 +149,15 @@ final class ReceivingSession extends Record
     }
 
     /**
+     * A session is well-formed in the same two ways its receipt will be: it **answers a document** —
+     * both halves of the ref, no reason — or it is a **source-less intake**, with neither half and a
+     * reason.
+     *
+     * The reason is required up front rather than at posting because it shapes the count itself:
+     * whether a cost is asked for on each line, and whether it must be given.
+     *
      * Half a reference is the shape worth refusing loudly, for the reason it is on a receipt: a ref
      * type with no id points at nothing, an id with no ref type points at everything.
-     *
-     * Unlike a receipt, a source-less session owes no reason. A reason states why stock is here and
-     * what that implies about its cost, and nothing has arrived yet — the receipt this session
-     * produces is where that has to be answered.
      */
     #[\Override]
     public function validate(): void
@@ -119,6 +173,27 @@ final class ReceivingSession extends Record
             throw new RecordValidationException(
                 'ReceivingSession.source_ref_type_id and source_id must be positive integers when set.',
                 ['field' => 'source_id', 'source_ref_type_id' => $this->source_ref_type_id, 'source_id' => $this->source_id],
+            );
+        }
+
+        if (null !== $this->source_ref_type_id && null !== $this->reason) {
+            throw new RecordValidationException(
+                'ReceivingSession.reason belongs to a source-less intake; a session against a document takes its cost from that document.',
+                ['field' => 'reason', 'value' => $this->reason->value],
+            );
+        }
+
+        if (null !== $this->supplier_id && ReceiptReason::PurchaseWithoutOrder !== $this->reason) {
+            throw new RecordValidationException(
+                'ReceivingSession.supplier_id names who sold stock bought without a purchase order; no other session carries one.',
+                ['field' => 'supplier_id', 'value' => $this->supplier_id],
+            );
+        }
+
+        if (null === $this->source_ref_type_id && null === $this->reason) {
+            throw new RecordValidationException(
+                'ReceivingSession with no source must carry a reason — it decides what each staged line owes about cost.',
+                ['field' => 'reason', 'value' => null],
             );
         }
     }

@@ -24,23 +24,22 @@ use Nandan108\InvFlux\Identity\RecordIdentity;
  * One outbound shipment of (part of) an order — the dispatch analogue of a
  * goods receipt. The row records *what physically left and when*; its
  * {@see ShipmentLine} children carry the per-line quantity **and the
- * authoritative at-fulfilment unit cost** (the real COGS, stamped at the WAC
+ * authoritative at-fulfillment unit cost** (the real COGS, stamped at the WAC
  * of the dispatch instant — see).
  *
  * **Schema is multi-shipment-per-order from the first migration** (BINARY(16)
  * UUIDv7 keys, `order_id` non-unique): native partial fulfillment,
  * multi-warehouse split, resend/reversal, and bulk-process all assume several
- * shipment rows per order, and order-atomic modelling is cheap now but
- * expensive to retrofit. **Tier split is in the *write paths*, not the schema:**
- * Essentials writes exactly one {@see ShipmentStatus::Processed} row per order at
- * dispatch-confirm (the single happy path); the per-shipment save/process
- * endpoint, partial UI, carrier hand-off, and the `resend_of_*` /
- * `reversal_of_*` exceptional flows are Pro.
+ * shipment rows per order, and order-atomic modeling is cheap now but
+ * expensive to retrofit. **What differs between installs is the *write paths*, not the schema:**
+ * the base install writes one {@see ShipmentStatus::Processed} row per dispatch it confirms, one per
+ * shipment recorded from the host's own fulfillment records, and marks a shipment
+ * {@see ShipmentStatus::Reversed} when its dispatch is undone; a per-shipment save/process endpoint,
+ * partial dispatch from InvFlux's own screens and resends are contributed by add-ons.
  *
- * Carrier / tracking fields are nullable and stay empty on the Essentials happy path
- * (InvFlux is a well-behaved WC citizen: the WC status transition drives label
- * plugins; we don't own labels). They are populated by the Pro tracking-entry
- * control + `TrackingMetaWriter`.
+ * Carrier / tracking fields are nullable. They are filled when the operator types a tracking
+ * number at Ship, when a label integration produces one, or when the shipment is recorded from a
+ * record some other system made ({@see $source_system}); InvFlux itself never generates a label.
  *
  * @api
  *
@@ -53,9 +52,17 @@ use Nandan108\InvFlux\Identity\RecordIdentity;
 // one order and an order line from another. Pairing them against this turns that from a rule a
 // writer has to remember into one the database keeps.
 #[UniqueKey('uniq_id_order', columns: ['id', 'order_id'])]
+// One shipment per external record. Recording a shipment someone else made is driven by events that
+// can arrive twice — a re-fired hook, a retried webhook — and the second must find the first rather
+// than move stock again. A key, not a lookup-then-insert, because two concurrent fires both pass the
+// lookup. Shipments made here leave `external_ref` null, and a unique key admits any number of those.
+#[UniqueKey('uniq_source_ref', columns: ['source_system', 'external_ref'])]
 #[LockTier(24)]
 final class Shipment extends Record
 {
+    /** {@see $source_system} of a shipment confirmed in InvFlux. */
+    public const SOURCE_INVFLUX = 'invflux';
+
     /** 16-byte binary UUIDv7 — minted on save via RecordIdentity. */
     #[Column(ColumnType::Binary, length: 16)]
     public ?string $id = null;
@@ -89,6 +96,18 @@ final class Shipment extends Record
     /** ID/reference owned by an external shipping plugin, if any. */
     #[Column(ColumnType::VarChar, length: 200, nullable: true)]
     public ?string $external_ref = null;
+
+    /**
+     * Which system made this shipment: `invflux` when it was confirmed here, otherwise the system
+     * whose record it was recorded from — a code the adapter recording it chooses, one per kind of record.
+     *
+     * It is what stops a two-way mirror from looping. A shipment recorded *from* another system is
+     * never written back *to* it — that system already holds the record, so writing it would create
+     * a second one, which would be recorded again. With {@see $external_ref} it also names the record
+     * a shipment came from, uniquely.
+     */
+    #[Column(ColumnType::VarChar, length: 50, default: self::SOURCE_INVFLUX)]
+    public string $source_system = self::SOURCE_INVFLUX;
 
     /** Tracking entered by hand (operator) vs supplied by a carrier integration. */
     #[Column(ColumnType::Bool, default: false)]

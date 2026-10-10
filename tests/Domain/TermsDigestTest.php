@@ -11,7 +11,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * The shape of the terms digest expression — asserted here because getting it wrong is invisible.
  *
- * MySQL normalises a JSON object's keys into length-then-lexical order; MariaDB keeps the order
+ * MySQL normalizes a JSON object's keys into length-then-lexical order; MariaDB keeps the order
  * they were written in. Writing them already sorted is what makes the two engines produce the same
  * bytes, and therefore the same hash. A field added in the wrong position would diverge **per
  * engine**: every install on one would compute different hashes from every install on the other,
@@ -47,18 +47,18 @@ final class TermsDigestTest extends TestCase
     }
 
     /**
-     * Every field is dropped when null rather than serialised as one. That is what lets the table
+     * Every field is dropped when null rather than serialized as one. That is what lets the table
      * gain a column later without recomputing the digest of rows that do not carry it — and with it
      * every foreign key those digests hold up.
      */
-    public function testNullableFieldsAreRemovedRatherThanSerialised(): void
+    public function testNullableFieldsAreRemovedRatherThanSerialized(): void
     {
         $expression = self::expression();
 
         self::assertStringContainsString('JSON_REMOVE', $expression);
         foreach (Terms::DIGEST_FIELDS as $field) {
             if ('body' === $field) {
-                continue; // Never null: a row with no text is not an artefact.
+                continue; // Never null: a row with no text is not an artifact.
             }
             self::assertStringContainsString(
                 sprintf('IF(`%s` IS NULL', $field),

@@ -176,7 +176,7 @@ interface SubjectRegistrar
      * history. Anything else keeps its history and hands its *identity* to another subject via
      * {@see migrateActiveIdentifiers()} instead — that is still the general mechanism, and this is
      * the case where minting a second subject would only strand the first one's supplier
-     * catalogues, purchase-order lines and costs to protect a ledger that does not exist.
+     * catalogs, purchase-order lines and costs to protect a ledger that does not exist.
      *
      * The self-referential product/variant FKs are re-derived, because their shape follows the
      * kind. Idempotent when the subject is already of $newKind.

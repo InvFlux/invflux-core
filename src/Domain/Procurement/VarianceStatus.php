@@ -18,7 +18,7 @@ namespace Nandan108\InvFlux\Domain\Procurement;
  * the quantity accrues progressively (reception). A non-progressive axis (confirmation) is always
  * `finalized`, so its under case is `Short`.
  *
- * The over-receipt *tolerance guard* (warn/override on an anomalous over-delivery) is not modelled
+ * The over-receipt *tolerance guard* (warn/override on an anomalous over-delivery) is not modeled
  * here: at Essentials the operator is the guard and this classification is the display. The structured,
  * policy-driven guard is Pro (supplier-% + per-SKU override), with automated/scanner/parallel
  * receiving in Pro / Scale-Micro.

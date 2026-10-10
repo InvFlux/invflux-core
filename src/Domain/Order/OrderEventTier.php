@@ -26,7 +26,7 @@ enum OrderEventTier: string
     case Lifecycle = 'lifecycle';
 
     /**
-     * Resolutions / approvals / merchant or system decisions that authorise downstream
+     * Resolutions / approvals / merchant or system decisions that authorize downstream
      * Execution-tier events. Examples: `lpsc.resolved`, future `cs.approved`,
      * `return.approved`. Decision events are the natural `parent_event_id` target for
      * {@see OrderCorrection}.
@@ -35,7 +35,7 @@ enum OrderEventTier: string
 
     /**
      * Concrete monetary or stock effects of a decision — `refund.failed`,
-     * `refund.cancelled`, future `gl.posted`. Execution-tier events carry monetary
+     * `refund.canceled`, future `gl.posted`. Execution-tier events carry monetary
      * payloads and FX context.
      */
     case Execution = 'execution';

@@ -37,7 +37,7 @@ final class RenameTermsLineage
      * Refuse a name another set carries, archived sets included, compared case-insensitively. A set
      * keeping its own name — a rename that changes only its case — is not a clash.
      *
-     * One read of every set: the table holds a merchant's handful of term sets, not a catalogue.
+     * One read of every set: the table holds a merchant's handful of term sets, not a catalog.
      */
     public static function assertNameFree(TermsRepository $terms, string $name, ?int $exceptId = null): void
     {

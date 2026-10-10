@@ -8,7 +8,7 @@ namespace Nandan108\InvFlux\License;
  * How a single paid feature behaves once its license is revoked (or the
  * install has exhausted offline stale-tolerance and degraded).
  *
- * This is a per-feature attribute of the manifest catalogue, captured into
+ * This is a per-feature attribute of the manifest catalog, captured into
  * each license's snapshot at issuance so revoke behavior grandfathers
  * exactly like membership (,
  * ). The string values are the on-the-wire

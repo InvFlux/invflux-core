@@ -98,7 +98,36 @@ enum OrderEventType: string
     // ── Shipment ────────────────────────────────────────────────────────────────────
     case ShipmentPrepared = 'shipment.prepared';
     case ShipmentSent = 'shipment.sent';
-    case ShipmentCancelled = 'shipment.cancelled';
+    case ShipmentCanceled = 'shipment.canceled';
+
+    /**
+     * A processed shipment was reversed: its Ship was confirmed by mistake and the goods never left.
+     *
+     * Not a return — returned goods left and came back, and post a correction. A reversal says the
+     * dispatch did not happen, so the units go back to being committed to this order and its lines
+     * owe them again. The shipment row stays, marked reversed, and this event references it.
+     *
+     * Payload: `lines` (`[{subject_id, sku, name, qty}]`, what the reversed shipment carried) and
+     * `reason` (free text, may be empty).
+     */
+    case ShipmentReversed = 'shipment.reversed';
+
+    /**
+     * The host's own record of a shipment was edited after it was fulfilled — a quantity reduced,
+     * marked unfulfilled, or deleted — and the edit was **not** followed.
+     *
+     * The shipment already moved stock, and that movement is history; a host-side edit cannot
+     * rewrite it. So the divergence is recorded for someone to resolve: reverse the shipment if the
+     * goods never left, record a return if they did.
+     *
+     * The host's record may also be the order's status: a shipped order moved back to a not-done
+     * status (`reopened`), which names no single shipment.
+     *
+     * Payload: `host_record` (the host's id for its record, or for the order), `change` (`items` |
+     * `unfulfilled` | `deleted` | `excess` | `reopened`), `shipment_id` (hex) when the record maps to
+     * a shipment, and with `reopened` the host statuses moved `from` and `to`.
+     */
+    case ShipmentHostDiverged = 'shipment.host_diverged';
 
     // ── Corrections ─────────────────────────────────────────────────────────────────
     case CorrectionCreated = 'correction.created';
@@ -177,10 +206,10 @@ enum OrderEventType: string
     case CorrectionsProcessed = 'corrections.processed';
 
     /**
-     * Durable refund *intent / authorisation* — the head of the refund queue. Emitted
+     * Durable refund *intent / authorization* — the head of the refund queue. Emitted
      * by both the Essentials batch path and LPSC resolution when a refund is owed. An
      * `IssueScheduledRefund` execution turns it into a terminal sibling
-     * ({@see self::CorrectionRefundConfirmed} on success, {@see self::RefundCancelled}
+     * ({@see self::CorrectionRefundConfirmed} on success, {@see self::RefundCanceled}
      * on give-up); {@see self::RefundFailed} is a non-terminal retry marker.
      *
      * `occurred_at == execute_at` so the indexed time scan is the due filter
@@ -209,10 +238,10 @@ enum OrderEventType: string
      * operator's waive, a batch refused before it was processed (`reason: wc_order_missing` —
      * nothing was owed), or an automatic schedule handed to an operator (`reason:
      * handed_to_operator`, `successor_event_id` naming the manual schedule that still owes it).
-     * A refund whose host order no longer exists is still owed, so it is never cancelled for
+     * A refund whose host order no longer exists is still owed, so it is never canceled for
      * that alone. Distinct from a future `refund.voided` post-execution contra-entry.
      */
-    case RefundCancelled = 'refund.cancelled';
+    case RefundCanceled = 'refund.canceled';
 
     // ── Payments ────────────────────────────────────────────────────────────────────
     /**
@@ -261,7 +290,8 @@ enum OrderEventType: string
             self::OrderAddressChangedExternally,
             self::ShipmentPrepared,
             self::ShipmentSent,
-            self::ShipmentCancelled,
+            self::ShipmentCanceled,
+            self::ShipmentReversed,
             self::CorrectionCreated,
             self::CorrectionUnprocessed,
             self::CorrectionEdited,
@@ -274,10 +304,11 @@ enum OrderEventType: string
             self::CorrectionsProcessed,
             self::RefundScheduled => OrderEventTier::Decision,
             self::RefundFailed,
-            self::RefundCancelled => OrderEventTier::Execution,
+            self::RefundCanceled => OrderEventTier::Execution,
             self::NoteAdded,
             self::EmailSent,
             self::EmailSuppressed,
+            self::ShipmentHostDiverged,
             self::StockIssueReported => OrderEventTier::Ancillary,
         };
     }
@@ -294,7 +325,7 @@ enum OrderEventType: string
     {
         return match ($this) {
             self::RefundFailed,
-            self::RefundCancelled,
+            self::RefundCanceled,
             self::PaymentRecorded,
             self::PaymentVoided   => true,
             default               => false,

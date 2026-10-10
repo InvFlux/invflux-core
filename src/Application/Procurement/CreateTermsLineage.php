@@ -34,7 +34,7 @@ final class CreateTermsLineage
     {
         $name = RenameTermsLineage::validName($name);
         RenameTermsLineage::assertNameFree($this->terms, $name);
-        $source = TermsSource::normalise($body);
+        $source = TermsSource::normalize($body);
         if ('' === $source) {
             throw TermsException::emptyBody();
         }

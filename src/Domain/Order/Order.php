@@ -95,9 +95,9 @@ final class Order extends Record
     /**
      * Count of unsettled `refund.scheduled(mode=manual)` refunds on this order —
      * refunds owed on a non-refundable gateway that await an operator's out-of-band
-     * settlement. Denormalised counter (sibling of {@see $unprocessed_corrections}):
+     * settlement. Denormalized counter (sibling of {@see $unprocessed_corrections}):
      * `+1` when a manual schedule is emitted, `-1` when it's settled
-     * (`correction.refund_confirmed`) or `refund.cancelled`. Drives the dispatch
+     * (`correction.refund_confirmed`) or `refund.canceled`. Drives the dispatch
      * queue's "Pending manual refunds" filter.
      */
     #[Column(ColumnType::SmallIntUnsigned, default: 0)]
@@ -147,7 +147,7 @@ final class Order extends Record
      *
      * The host freezes its own copy of an address on its order, and for a WooCommerce order that
      * copy is perfectly good. These exist because a document InvFlux *issues* — a delivery note, a
-     * packing slip, a return authorisation — cannot have its parties live in the host: a channel
+     * packing slip, a return authorization — cannot have its parties live in the host: a channel
      * order arrives with a ship-to the host never holds, and an address read live rewrites every
      * document that ever stated it the moment a customer moves house.
      *

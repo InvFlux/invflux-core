@@ -31,18 +31,19 @@ final class RecordSupplierInvoiceTest extends TestCase
         ]);
     }
 
-    private function orderLine(int $id, string $unitCost = '10.0000'): PurchaseOrderLine
+    /** An ordered line on order 1, named (as every line is within its order) by its product. */
+    private function orderLine(int $subjectId, string $unitCost = '10.0000'): PurchaseOrderLine
     {
         return PurchaseOrderLine::newWith([
-            'id'        => $id, 'po_id' => 1, 'subject_id' => $id, 'qty_requested' => 100,
+            'po_id'     => 1, 'subject_id' => $subjectId, 'qty_requested' => 100,
             'unit_cost' => $unitCost,
         ]);
     }
 
-    private function invoiceLine(int $poLineId, int $qty, string $unitCost): SupplierInvoiceLine
+    private function invoiceLine(int $subjectId, int $qty, string $unitCost): SupplierInvoiceLine
     {
         return SupplierInvoiceLine::newWith([
-            'po_line_id' => $poLineId, 'qty' => $qty, 'unit_cost' => $unitCost,
+            'subject_id' => $subjectId, 'qty' => $qty, 'unit_cost' => $unitCost,
         ]);
     }
 

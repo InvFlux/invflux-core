@@ -19,8 +19,8 @@ use Nandan108\InvFlux\Exceptions\TermsException;
  *    a typo before anything went out is not a new edition of the terms.
  *  - **Used** — a new edition is minted and the current one retired. The text orders were issued
  *    under is never rewritten: it stays interned, and the edition that named it stays in the archive.
- *  - **Identical** to the current text once normalised — nothing happens. Re-saving what is there
- *    must not mint a version, which is what the normalisation exists to guarantee.
+ *  - **Identical** to the current text once normalized — nothing happens. Re-saving what is there
+ *    must not mint a version, which is what the normalization exists to guarantee.
  *
  * **The edit names the edition it started from**, and a save from any other is refused. Two people
  * editing one set would otherwise have the second silently overwrite the first — or, where the first
@@ -57,7 +57,7 @@ final class SaveTermsContent
             throw TermsException::staleEdit($editedFromOrdinal, $current->ordinal);
         }
 
-        $source = TermsSource::normalise($body);
+        $source = TermsSource::normalize($body);
         if ('' === $source) {
             throw TermsException::emptyBody();
         }

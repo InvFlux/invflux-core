@@ -14,7 +14,7 @@ namespace Nandan108\InvFlux\Schema;
  *
  * This enum is the **canonical set, not a closed one** — the same contract as the `stt`
  * dimension ({@see Stt}). An add-on may pass its own purpose string to
- * {@see SlotDefaultResolver::resolve()}; a resolver that recognises it answers, and one
+ * {@see SlotDefaultResolver::resolve()}; a resolver that recognizes it answers, and one
  * that does not **throws** rather than guessing. Silently falling back would put stock in
  * the wrong place, which is materially worse than a failed operation.
  *

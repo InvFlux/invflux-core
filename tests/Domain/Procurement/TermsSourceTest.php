@@ -29,7 +29,7 @@ final class TermsSourceTest extends TestCase
     #[DataProvider('invisibleDifferences')]
     public function testAnInvisibleDifferenceIsRemoved(string $source, string $canonical): void
     {
-        self::assertSame($canonical, TermsSource::normalise($source));
+        self::assertSame($canonical, TermsSource::normalize($source));
     }
 
     /** What decides what a line *is* in Markdown survives: indentation, and a single blank line. */
@@ -37,14 +37,14 @@ final class TermsSourceTest extends TestCase
     {
         $source = "- Delivery\n  - by road\n\n    code-like indent\n\nNext paragraph.";
 
-        self::assertSame($source, TermsSource::normalise($source));
+        self::assertSame($source, TermsSource::normalize($source));
     }
 
-    /** Normalising twice changes nothing — otherwise re-saving unchanged terms would mint a version. */
-    public function testNormalisingIsIdempotent(): void
+    /** Normalizing twice changes nothing — otherwise re-saving unchanged terms would mint a version. */
+    public function testNormalizingIsIdempotent(): void
     {
-        $once = TermsSource::normalise("\u{FEFF}\r\n# Terms  \r\n\r\n\r\n1. Net 30. \r\n");
+        $once = TermsSource::normalize("\u{FEFF}\r\n# Terms  \r\n\r\n\r\n1. Net 30. \r\n");
 
-        self::assertSame($once, TermsSource::normalise($once));
+        self::assertSame($once, TermsSource::normalize($once));
     }
 }

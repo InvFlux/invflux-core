@@ -11,7 +11,7 @@ namespace Nandan108\InvFlux\Domain\Order;
  * `unprocessed_corrections` / `workflow_state` by the recompute rule
  * (see `Nandan108\InvFlux\Woo\Application\Dispatch\OrderStatusRecomputer`).
  * The values are ordered along the natural workflow path
- * (Untouched → Started → Staged → Shipped / Cancelled) so the queue's
+ * (Untouched → Started → Staged → Shipped / Canceled) so the queue's
  * `status` index drives sensible top-of-list ordering by raw int.
  *
  * Distinct from {@see OrderWorkflowState} (which gates whether the order
@@ -47,11 +47,13 @@ enum OrderStatus: int
      * No shippable quantity remains on any stock-managed line. Per line, the
      * resolution can be any mix: fully shipped, fully corrected, or part of
      * each (e.g., 2 of 3 shipped, the remaining 1 `PM`-missing then refunded).
-     * The invariant is `qty_ordered − qty_shipped − qty_corrected == 0` on
-     * every line. Terminal positive state.
+     * The invariant is `qty_ordered − qty_shipped − qty_canceled == 0` on
+     * every line (`qty_outstanding == 0`). Returned units do not enter it: a
+     * return follows a shipment, which already counted the unit. Terminal
+     * positive state.
      */
     case Shipped = 3;
 
-    /** Cancelled before fulfilment (matched against external order status). */
-    case Cancelled = 4;
+    /** Canceled before fulfillment (matched against external order status). */
+    case Canceled = 4;
 }

@@ -31,9 +31,9 @@ interface LabelTranslationRepository
     /**
      * Every translation of one field, for a set of entities of one type.
      *
-     * Keyed by entity key — as `array-key`, not `string`, because PHP normalises a numeric-string
+     * Keyed by entity key — as `array-key`, not `string`, because PHP normalizes a numeric-string
      * array key to an integer: a tag whose key is `"7"` comes back under `7`. Callers look the key
-     * up with the same string they passed and PHP normalises that too, so this matters only to the
+     * up with the same string they passed and PHP normalizes that too, so this matters only to the
      * declared type, never to a lookup.
      *
      * @param list<string> $keys entity keys; an empty list reads nothing

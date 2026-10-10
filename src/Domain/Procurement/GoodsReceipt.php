@@ -86,7 +86,7 @@ final class GoodsReceipt extends Record
 
     /**
      * Who delivered, where that is a fact worth keeping and no document already records it — a
-     * supplier delivery raised against no order is the case that needs it. Reached through the
+     * purchase made without an order is the case that needs it. Reached through the
      * purchase order otherwise, and absent for an opening balance or an in-house build, which come
      * from nobody.
      *

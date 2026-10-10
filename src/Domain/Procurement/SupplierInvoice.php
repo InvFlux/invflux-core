@@ -9,6 +9,7 @@ use Nandan108\Attrecord\Attribute\Index;
 use Nandan108\Attrecord\Attribute\LockTier;
 use Nandan108\Attrecord\Attribute\Relation;
 use Nandan108\Attrecord\Attribute\Table;
+use Nandan108\Attrecord\Attribute\UniqueKey;
 use Nandan108\Attrecord\Enum\ColumnType;
 use Nandan108\Attrecord\Enum\ForeignKeyAction;
 use Nandan108\Attrecord\Enum\RelationType;
@@ -41,6 +42,11 @@ use Nandan108\Attrecord\Record;
  * @psalm-suppress PossiblyUnusedProperty Properties are hydrated by attrecord from row data.
  */
 #[Table(name: 'invflux_supplier_invoices')]
+// Redundant as a uniqueness rule (`id` is already unique) and kept for one reason: it is the target
+// of {@see SupplierInvoiceLine}'s diamond constraint. A line carries both `invoice_id` and `po_id`,
+// and without a key over this pair nothing makes them agree, so a line could name an invoice for one
+// order and bill a line of another.
+#[UniqueKey('uniq_id_po', columns: ['id', 'po_id'])]
 #[LockTier(40)]
 final class SupplierInvoice extends Record
 {

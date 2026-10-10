@@ -21,7 +21,7 @@ namespace Nandan108\InvFlux\Domain\Order;
  *   a stock count, not an order correction.
  *
  * Where a write-off is refused, the units are an on-hand correction: a fact about the shelf, which
- * then leaves the order to ship from what remains, or to be cancelled as out of stock. A cancellation
+ * then leaves the order to ship from what remains, or to be canceled as out of stock. A cancellation
  * needs no such rule: it gives units back rather than destroying them.
  *
  * @api

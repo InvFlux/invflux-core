@@ -22,7 +22,7 @@ use Nandan108\InvFlux\Domain\Order\OrderLine;
 
 /**
  * One order line on one {@see Shipment}: the quantity that left, and the
- * **authoritative at-fulfilment unit cost** — the real COGS basis.
+ * **authoritative at-fulfillment unit cost** — the real COGS basis.
  *
  * `unit_cost` is stamped at the **WAC of the dispatch instant** (the same
  * instant the inventory decrement posts, in the same transaction, so the two
@@ -33,7 +33,7 @@ use Nandan108\InvFlux\Domain\Order\OrderLine;
  * the subject) — surface it as such, never as zero (zero fakes a 100% margin).
  *
  * **Period COGS** = `Σ over shipment lines (qty_shipped × unit_cost)`, net of
- * return-correction reversals. `subject_id` is denormalised (mirrors
+ * return-correction reversals. `subject_id` is denormalized (mirrors
  * {@see OrderLine}) so cost roll-ups join per subject without walking order
  * lines.
  *
@@ -101,18 +101,18 @@ final class ShipmentLine extends Record implements AppendOnly
      * The order the line belongs to, carried so the reference above can be a real constraint —
      * a foreign key names columns on this row and cannot reach through `shipment_id` to find it.
      *
-     * Denormalised, like {@see $subject_id} beside it, and kept honest by the second constraint
+     * Denormalized, like {@see $subject_id} beside it, and kept honest by the second constraint
      * above rather than by the writer remembering.
      */
     #[Column(ColumnType::Binary, length: 16)]
     public ?string $order_id = null;
 
-    /** Denormalised subject (FK reachable via the order line) for per-subject COGS roll-ups. */
+    /** Denormalized subject (FK reachable via the order line) for per-subject COGS roll-ups. */
     #[Column(ColumnType::IntUnsigned)]
     #[Index('idx_subject')]
     public int $subject_id = 0;
 
-    #[Column(ColumnType::SmallIntUnsigned, default: 0)]
+    #[Column(ColumnType::IntUnsigned, default: 0)]
     public int $qty_shipped = 0;
 
     /** Authoritative COGS unit cost — WAC at dispatch instant. Null = uncosted. Immutable. */

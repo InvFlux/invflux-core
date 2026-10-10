@@ -37,4 +37,13 @@ final class ProcurementMovementType
      * {@see ReceiptReason} carries which of those it was.
      */
     public const STOCK_INTAKE = 'stock_intake';
+
+    /**
+     * A posted receipt corrected because it was recorded wrong — units it never brought taken back
+     * out, or units it missed brought in. Its own code rather than a negative receipt or an on-hand
+     * correction: the ledger's reason for the movement is "the receipt was wrong", and a received
+     * figure or a shrinkage figure that absorbed it would be measuring the mistake. The ledger row
+     * references the {@see ReceiptCorrection}.
+     */
+    public const RECEIPT_CORRECTION = 'receipt_correction';
 }

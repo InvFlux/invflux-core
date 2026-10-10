@@ -34,7 +34,7 @@ enum BookingOutcome: string
     /**
      * Late-payment recovery captured stock for at least one order line but not all of them.
      *
-     * The per-line capture loop in `EssentialsFlowRunner::recoverCancelledOrder`
+     * The per-line capture loop in `EssentialsFlowRunner::recoverCanceledOrder`
      * attempts to book each line independently;
      * when some lines succeed and others fail (insufficient `atp`), the order-level outcome
      * is `BOOKED_RECOVERED_PARTIAL`. LPSC resolution paths (Path 2 / Path 3 / Path 1) then

@@ -24,7 +24,7 @@ namespace Nandan108\InvFlux\Domain\Address;
  * regions it renames, which is how a reader sees at a glance that Dutch renames 144 of 250 and
  * Italian 130. A region absent from a language falls through to English rather than to a code.
  *
- * Names are CLDR's standard display forms, so a few read as a catalogue rather than as an envelope
+ * Names are CLDR's standard display forms, so a few read as a catalog rather than as an envelope
  * (`Congo - Kinshasa`, `Hong Kong SAR China`). Unambiguous and legible, which is the bar for a
  * postal line; hand-correcting 250 names in seven languages is the cost this class exists to avoid.
  *

@@ -40,7 +40,7 @@ enum OrderWorkflowState: int
     /** System-held out of the queue pending a signal (payment/capture/fraud) — see {@see HoldReason}. */
     case OnHold = 1;
 
-    /** Terminal — order has left the queue (shipped-complete / cancelled / failed / fully refunded). */
+    /** Terminal — order has left the queue (shipped-complete / canceled / failed / fully refunded). */
     case Closed = 2;
 
     /**

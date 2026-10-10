@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * The policy half of the reaper, which is the half that can be wrong without failing.
  *
- * Whether a row is referenced is answered by the database — the foreign-key catalogue, then
+ * Whether a row is referenced is answered by the database — the foreign-key catalog, then
  * `RESTRICT` — and is covered by the storage package's integration tests. What is pinned here is the
  * *grace period*, because getting it wrong deletes a party a request is about to point at, and
  * nothing about that failure is visible until a document has no address.
@@ -37,7 +37,7 @@ final class ReapOrphanedPartiesTest extends TestCase
     }
 
     /**
-     * Reaping nothing must cost nothing — no catalogue read, no statement. The save path calls this
+     * Reaping nothing must cost nothing — no catalog read, no statement. The save path calls this
      * with the outgoing key of every edit, and a supplier created rather than edited has none.
      */
     public function testAnEmptyKeySetIsANoOp(): void

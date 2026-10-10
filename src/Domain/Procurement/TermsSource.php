@@ -11,7 +11,7 @@ namespace Nandan108\InvFlux\Domain\Procurement;
  * render identically but differ in line endings or stray trailing spaces would otherwise intern to
  * two rows, and a merchant saving terms they did not change would mint a new version of them. It
  * runs before a text is written, never inside {@see Terms::$content_hash}'s expression: a
- * normaliser inside the digest would become part of the identity function, so improving it later
+ * normalizer inside the digest would become part of the identity function, so improving it later
  * would shift every stored hash at once.
  *
  * What it does, all of it invisible once rendered:
@@ -33,7 +33,7 @@ namespace Nandan108\InvFlux\Domain\Procurement;
  */
 final class TermsSource
 {
-    public static function normalise(string $source): string
+    public static function normalize(string $source): string
     {
         $text = str_replace(["\r\n", "\r"], "\n", $source);
         if (str_starts_with($text, "\u{FEFF}")) {

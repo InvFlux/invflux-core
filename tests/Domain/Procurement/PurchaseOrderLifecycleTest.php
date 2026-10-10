@@ -33,7 +33,7 @@ final class PurchaseOrderLifecycleTest extends TestCase
         self::assertTrue($l->canTransition(PoStatus::Acknowledged, PoStatus::InTransit));
         // Skippable — an install that doesn't track acknowledgements goes straight on.
         self::assertTrue($l->canTransition(PoStatus::Submitted, PoStatus::InTransit));
-        self::assertTrue($l->canTransition(PoStatus::Acknowledged, PoStatus::Cancelled));
+        self::assertTrue($l->canTransition(PoStatus::Acknowledged, PoStatus::Canceled));
         self::assertSame('po.acknowledged', $l->eventTypeFor(PoStatus::Acknowledged));
     }
 
@@ -41,6 +41,34 @@ final class PurchaseOrderLifecycleTest extends TestCase
      * The review states are schema-present but carry no base edges — the review add-on contributes
      * them at runtime. Their landing event names are reserved here so it rarely needs registerEventType().
      */
+    /**
+     * Arrival is an optional waypoint between transit and counting: recorded at the dock, then
+     * counted. A split shipment's next delivery can be recorded at the dock too. Nothing is counted
+     * on arrival, so counting is its only exit.
+     */
+    public function testArrivedIsAnOptionalWaypointBeforeCounting(): void
+    {
+        $l = $this->free();
+        self::assertTrue($l->canTransition(PoStatus::InTransit, PoStatus::Arrived));
+        self::assertTrue($l->canTransition(PoStatus::Arrived, PoStatus::InReception));
+        self::assertTrue($l->canTransition(PoStatus::PartiallyReceived, PoStatus::Arrived));
+        // Skippable — a shop that counts as it unloads goes straight to reception.
+        self::assertTrue($l->canTransition(PoStatus::InTransit, PoStatus::InReception));
+        // Unannounced deliveries can be recorded at the dock straight from the order's open states.
+        self::assertTrue($l->canTransition(PoStatus::Submitted, PoStatus::Arrived));
+        self::assertTrue($l->canTransition(PoStatus::Acknowledged, PoStatus::Arrived));
+        // An abandoned reception returns to the dock; a delivery refused there is canceled.
+        self::assertTrue($l->canTransition(PoStatus::InReception, PoStatus::Arrived));
+        self::assertTrue($l->canTransition(PoStatus::Arrived, PoStatus::Canceled));
+        // Refused at the dock with a replacement coming: the order goes back to waiting for it.
+        self::assertTrue($l->canTransition(PoStatus::Arrived, PoStatus::InTransit));
+        // The same refusal on an order whose earlier deliveries came in rests as partially received.
+        self::assertTrue($l->canTransition(PoStatus::Arrived, PoStatus::PartiallyReceived));
+        self::assertFalse($l->canTransition(PoStatus::InPrep, PoStatus::Arrived));
+        self::assertFalse($l->canTransition(PoStatus::Arrived, PoStatus::Received));
+        self::assertSame('po.arrived', $l->eventTypeFor(PoStatus::Arrived));
+    }
+
     /**
      * Goods can arrive before anyone recorded that they shipped, so reception is reachable without
      * passing through in-transit.
@@ -77,10 +105,10 @@ final class PurchaseOrderLifecycleTest extends TestCase
     {
         $l = $this->free();
         // Cancellable while non-received…
-        self::assertTrue($l->canTransition(PoStatus::InPrep, PoStatus::Cancelled));
-        self::assertTrue($l->canTransition(PoStatus::InReception, PoStatus::Cancelled));
+        self::assertTrue($l->canTransition(PoStatus::InPrep, PoStatus::Canceled));
+        self::assertTrue($l->canTransition(PoStatus::InReception, PoStatus::Canceled));
         // …but not once received.
-        self::assertFalse($l->canTransition(PoStatus::Received, PoStatus::Cancelled));
+        self::assertFalse($l->canTransition(PoStatus::Received, PoStatus::Canceled));
     }
 
     /**
@@ -88,11 +116,11 @@ final class PurchaseOrderLifecycleTest extends TestCase
      * outcomes are dead ends. A stray edge here would be the model regressing: it would mean an
      * order could be put out of sight only by overwriting how it turned out.
      */
-    public function testReceivedAndCancelledAreTerminal(): void
+    public function testReceivedAndCanceledAreTerminal(): void
     {
         $l = $this->free();
         self::assertSame([], $l->transitionsFrom(PoStatus::Received));
-        self::assertSame([], $l->transitionsFrom(PoStatus::Cancelled));
+        self::assertSame([], $l->transitionsFrom(PoStatus::Canceled));
     }
 
     public function testIllegalEdgesAreRejected(): void
@@ -114,7 +142,7 @@ final class PurchaseOrderLifecycleTest extends TestCase
         $l = $this->free();
         self::assertSame('po.submitted', $l->eventTypeFor(PoStatus::Submitted));
         self::assertSame('po.received', $l->eventTypeFor(PoStatus::Received));
-        self::assertSame('po.cancelled', $l->eventTypeFor(PoStatus::Cancelled));
+        self::assertSame('po.canceled', $l->eventTypeFor(PoStatus::Canceled));
     }
 
     public function testEventTypeForUnknownStatusThrows(): void
@@ -135,7 +163,7 @@ final class PurchaseOrderLifecycleTest extends TestCase
     }
 
     /**
-     * "Keep a PO open across deliveries" is base behaviour — receiving one delivery of a split shipment
+     * "Keep a PO open across deliveries" is base behavior — receiving one delivery of a split shipment
      * and parking the PO until the next is recording what physically arrived. The *entry* edge
      * in_reception → partially_received is seeded here, so a base install reaches the state on its own.
      */
@@ -148,7 +176,8 @@ final class PurchaseOrderLifecycleTest extends TestCase
     }
 
     /**
-     * The exit edges out of partially_received: reopen to receive the next delivery, or finalize
+     * The exit edges out of partially_received: record the next delivery at the dock, reopen to receive
+     * it, or finalize
      * (a final receipt or a close-short both land on received). Not cancellable once partially received
      * (goods are already in).
      */
@@ -157,8 +186,8 @@ final class PurchaseOrderLifecycleTest extends TestCase
         $l = $this->free();
         self::assertTrue($l->canTransition(PoStatus::PartiallyReceived, PoStatus::InReception), 'must be able to reopen for the next delivery');
         self::assertTrue($l->canTransition(PoStatus::PartiallyReceived, PoStatus::Received), 'must be able to finalize / close short');
-        self::assertFalse($l->canTransition(PoStatus::PartiallyReceived, PoStatus::Cancelled));
-        self::assertSame([PoStatus::InReception, PoStatus::Received], $l->transitionsFrom(PoStatus::PartiallyReceived));
+        self::assertFalse($l->canTransition(PoStatus::PartiallyReceived, PoStatus::Canceled));
+        self::assertSame([PoStatus::Arrived, PoStatus::InReception, PoStatus::Received], $l->transitionsFrom(PoStatus::PartiallyReceived));
     }
 
     /**

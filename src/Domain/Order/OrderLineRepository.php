@@ -87,8 +87,8 @@ interface OrderLineRepository
      * and survive the disappearance of the demand that caused them.
      *
      * **Callers establish that with {@see referencedIds()}, not with the quantity counters.** The
-     * counters are derived and can fall back to zero while the history they summarised is still
-     * on file — a reinstated cancellation decrements `qty_corrected` and deliberately leaves the
+     * counters are derived and can fall back to zero while the history they summarized is still
+     * on file — a reinstated cancellation decrements `qty_canceled` and deliberately leaves the
      * original processed correction behind. The database refuses such a delete regardless (the
      * referring rows are RESTRICT), so a caller that skips the check gets an exception rather than
      * silence; the check is how it avoids provoking one.
@@ -101,7 +101,7 @@ interface OrderLineRepository
      * Which of the given lines something still refers to, as a set of `(order, line)` keys.
      *
      * The honest form of "does this line carry history": it asks the referring tables rather than
-     * trusting a counter on the line to still summarise them. One bulk read per referring table,
+     * trusting a counter on the line to still summarize them. One bulk read per referring table,
      * never a per-line probe.
      *
      * Keys are returned in the encoding {@see OrderLine::keyOf()} produces, because a line number
@@ -118,7 +118,7 @@ interface OrderLineRepository
      * Count the order lines for a subject that still have work outstanding
      * (`qty_outstanding > 0`) — the deletion guard's `open_order_lines` check.
      *
-     * A line drops out of this count when the order is fulfilled or cancelled
+     * A line drops out of this count when the order is fulfilled or canceled
      * (either zeroes its outstanding quantity), so a positive result means the
      * subject is referenced by at least one genuinely open order. One aggregate
      * query; never a per-line scan.

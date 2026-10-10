@@ -49,8 +49,8 @@ final class ArchivePurchaseOrderTest extends TestCase
 
     /**
      * Reachable from every state, including ones no lifecycle edge leads out of:
-     * `partially_received` has exactly two edges, and a status-shaped archive could not be one of
-     * them without somebody adding it there by hand.
+     * `partially_received` has only its wind-down edges, and a status-shaped archive could not be one
+     * of them without somebody adding it there by hand.
      */
     public function testAnyStateCanBeFiledAwayIncludingPartiallyReceived(): void
     {
@@ -68,7 +68,7 @@ final class ArchivePurchaseOrderTest extends TestCase
     public function testPuttingItBackClearsTheStampAndRecordsIt(): void
     {
         $po = PurchaseOrder::newWith([
-            'id'          => 1, 'supplier_id' => 1, 'status' => PoStatus::Cancelled,
+            'id'          => 1, 'supplier_id' => 1, 'status' => PoStatus::Canceled,
             'archived_at' => new \DateTimeImmutable('-2 days'),
         ]);
         $event = null;

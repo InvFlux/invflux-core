@@ -34,7 +34,7 @@ interface SlotDefaultResolver
      * @param string             $layer     a layer name, e.g. `SlotSpaceFactory::LAYER_COMMERCIAL`
      * @param string             $dimension a dimension name, e.g. `loc`
      * @param SlotPurpose|string $purpose   what the value is for; a resolver that does not
-     *                                      recognise the purpose MUST throw, never guess
+     *                                      recognize the purpose MUST throw, never guess
      *
      * @return non-empty-string the dimension value to use
      *

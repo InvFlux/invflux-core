@@ -16,15 +16,15 @@ use Nandan108\Attrecord\Record;
 /**
  * One merchant-supplied translation of one label, in one locale.
  *
- * **Merchant data, not a catalogue string.** The admin language is a *per-user* WordPress
+ * **Merchant data, not a catalog string.** The admin language is a *per-user* WordPress
  * setting, so a shop whose floor staff read different languages shows everything the merchant
  * named — a tag, a location, a reason code — in whichever language the person who created it
  * happened to be using. Gettext cannot help: these strings are typed after the build, by the
  * merchant, and never reach a `.po` file. This table is where the merchant answers for them,
  * and nothing here is ever extracted or shipped.
  *
- * **One table for every labelled entity**, not a per-locale column on each record. `entity_type`
- * is an open string, so an add-on's own labelled entity needs no schema change; one indexed read
+ * **One table for every labeled entity**, not a per-locale column on each record. `entity_type`
+ * is an open string, so an add-on's own labeled entity needs no schema change; one indexed read
  * resolves a whole list; and the capability check that guards a write stays in one dispatcher
  * instead of being re-implemented on each entity's update path.
  *
@@ -50,7 +50,7 @@ final class LabelTranslation extends Record
     /** The order/purchase-order/supplier tag vocabulary — phase one's only consumer. */
     public const ENTITY_TAG = 'tag';
 
-    /** The display label itself — the field every labelled entity has. */
+    /** The display label itself — the field every labeled entity has. */
     public const FIELD_NAME = 'name';
 
     /** A one-line gloss, where the entity carries one. */
@@ -62,7 +62,7 @@ final class LabelTranslation extends Record
     /**
      * Which kind of entity this label belongs to ({@see self::ENTITY_TAG}, `location`,
      * `adjustment_reason`, …). An open string: an add-on registers its own rather than
-     * extending an enum, which is what keeps a new labelled entity off the schema.
+     * extending an enum, which is what keeps a new labeled entity off the schema.
      */
     #[Column(ColumnType::VarChar, length: 32)]
     public string $entity_type = '';

@@ -39,4 +39,29 @@ interface GoodsReceiptRepository
      *                                                               with no lines is absent
      */
     public function goodsReceiptLineTotals(array $receiptIds): array;
+
+    /** One receipt, by id — null when there is none. */
+    public function findGoodsReceipt(int $id): ?GoodsReceipt;
+
+    /**
+     * A receipt's lines, in the order they were written.
+     *
+     * @return list<ReceiptLine>
+     */
+    public function goodsReceiptLines(int $receiptId): array;
+
+    /**
+     * The corrections recorded against a receipt, oldest first.
+     *
+     * @return list<ReceiptCorrection>
+     */
+    public function receiptCorrections(int $receiptId): array;
+
+    /**
+     * Every line of every correction to a receipt, in the order they were written — so the last
+     * one per receipt line is that line's current figures.
+     *
+     * @return list<ReceiptCorrectionLine>
+     */
+    public function receiptCorrectionLines(int $receiptId): array;
 }

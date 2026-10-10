@@ -5,20 +5,20 @@ declare(strict_types=1);
 namespace Nandan108\InvFlux\Domain\Tag;
 
 /**
- * Behavioural powers a {@see Tag} definition can carry beyond plain labelling —
- * the **Pro governance layer** (labelling stays Essentials; labels *with teeth* are the
+ * Behavioural powers a {@see Tag} definition can carry beyond plain labeling —
+ * the **Pro governance layer** (labeling stays Essentials; labels *with teeth* are the
  * upgrade). Stored as a bitmask on {@see Tag::$governance_flags} via
  * {@see \Nandan108\Attrecord\Caster\BitmaskCaster}; every case is a distinct
  * positive power of two.
  *
  * `Tag` is a **scoped, shared** record, so this is a shared namespace of tag
- * behaviours — each consuming surface honours the bits it implements:
+ * behaviors — each consuming surface honors the bits it implements:
  *
  *  - {@see self::RequireNoteOnAdd} and {@see self::PromotedAffordance} are
  *    **universal** ("require a note", "give this tag a prominent affordance") —
  *    meaningful for any tagged document; a future subject/supplier/PO tag surface
  *    inherits them for free.
- *  - {@see self::SuppressActive} is **dispatch-honoured today**: it drops the
+ *  - {@see self::SuppressActive} is **dispatch-honored today**: it drops the
  *    carrying order out of the active queue. Other entities already own their
  *    "hide from active" axis as first-class lifecycle/system state (supplier
  *    `enabled`, subject published, PO close), so they neither need nor should

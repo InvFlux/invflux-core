@@ -7,7 +7,7 @@ namespace Nandan108\InvFlux\License;
 use Nandan108\InvFlux\Exceptions\LicenseException;
 
 /**
- * One independently-licensed grant inside a {@see LicenseBlob} — the base licence
+ * One independently-licensed grant inside a {@see LicenseBlob} — the base license
  * every install holds, or a purchased add-on.
  *
  * Every grant names a **SKU**, base and add-on alike. There is no tier: an install
@@ -28,7 +28,7 @@ final class Entitlement
      * The SKU every install holds — the platform itself, and the blob's one Base grant.
      *
      * The key is the product's name, not its price. "Costs nothing" is a fact about one moment in
-     * the catalogue; a SKU is a permanent identity that ends up on every blob, every licence row
+     * the catalog; a SKU is a permanent identity that ends up on every blob, every license row
      * and every prerequisite edge, and the day the platform is bundled into something paid, a key
      * spelling `free` would be a lie nobody can cheaply retract.
      */
@@ -115,7 +115,7 @@ final class Entitlement
         $sku = self::str($e, 'sku');
 
         // The manifest snapshot travels inline with each entitlement (§5.3), frozen
-        // from the catalogue composition for this same SKU — so it needs no identity
+        // from the catalog composition for this same SKU — so it needs no identity
         // of its own beyond the one its entitlement already carries.
         $manifest = FeatureManifest::fromArray([
             'version'              => $e['manifest_version'] ?? null,

@@ -23,14 +23,14 @@ final class BuiltInCorrectionReasons
         // Said the same thing as `change_mind`; when the regret came is the correction's timing.
         'buyers_remorse',
         // An order still awaiting payment holds a reservation, not committed stock, so it is
-        // cancelled rather than corrected; one paid after its reservation lapsed is a shortfall.
+        // canceled rather than corrected; one paid after its reservation lapsed is a shortfall.
         'late_payment',
     ];
 
     /**
      * Reasons only the system records, never an operator: the late-payment shortfall is refunded
      * automatically when a customer pays after their checkout reservation lapsed, and which of the
-     * two applies is the store's disclosure setting, not a judgement made on the order.
+     * two applies is the store's disclosure setting, not a judgment made on the order.
      */
     private const SYSTEM_ONLY = ['shortfall_disclosed', 'shortfall_undisclosed'];
 

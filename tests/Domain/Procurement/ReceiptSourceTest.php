@@ -94,7 +94,7 @@ final class ReceiptSourceTest extends TestCase
         $line = ReceiptLine::newWith(['subject_id' => 7, 'qty' => 3]);
 
         $line->validate();
-        self::assertNull($line->po_line_id);
+        self::assertNull($line->po_id);
     }
 
     /** Nullable now, but still never zero — that would be "no line" wearing a line's clothes. */
@@ -103,7 +103,7 @@ final class ReceiptSourceTest extends TestCase
         $this->expectException(RecordValidationException::class);
         $this->expectExceptionMessageMatches('/positive integer when set/');
 
-        ReceiptLine::newWith(['subject_id' => 7, 'qty' => 3, 'po_line_id' => 0])->validate();
+        ReceiptLine::newWith(['subject_id' => 7, 'qty' => 3, 'po_id' => 0])->validate();
     }
 
     /** What arrived is never optional: a line with no subject moves stock nowhere. */
@@ -122,11 +122,10 @@ final class ReceiptSourceTest extends TestCase
     {
         $expected = [
             ReceiptReason::OpeningBalance->value    => CostSource::Entered,
-            ReceiptReason::SupplierDelivery->value  => CostSource::Entered,
+            ReceiptReason::PurchaseWithoutOrder->value  => CostSource::Entered,
             ReceiptReason::InHouseBuild->value      => CostSource::Entered,
             ReceiptReason::TransferIn->value        => CostSource::Derived,
             ReceiptReason::FoundStock->value        => CostSource::SeedFallback,
-            ReceiptReason::ReturnOutsideRma->value  => CostSource::SeedFallback,
             ReceiptReason::SampleOrDonation->value  => CostSource::Free,
         ];
 
@@ -149,9 +148,9 @@ final class ReceiptSourceTest extends TestCase
         ));
 
         self::assertSame(
-            [ReceiptReason::TransferIn, ReceiptReason::FoundStock, ReceiptReason::SampleOrDonation, ReceiptReason::ReturnOutsideRma],
+            [ReceiptReason::TransferIn, ReceiptReason::FoundStock, ReceiptReason::SampleOrDonation],
             $mayOmit,
         );
-        self::assertFalse(ReceiptReason::SupplierDelivery->allowsAbsentCost(), 'you paid for it, so say what');
+        self::assertFalse(ReceiptReason::PurchaseWithoutOrder->allowsAbsentCost(), 'you paid for it, so say what');
     }
 }

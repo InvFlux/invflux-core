@@ -30,7 +30,7 @@ enum AdvisoryKind: string
      *
      * A setting of this kind carries an explicit third value meaning *asked and
      * answered*, which is its default and the only value that trips the advisory.
-     * Both real answers clear it, including the one matching the host's behaviour.
+     * Both real answers clear it, including the one matching the host's behavior.
      */
     case Undecided = 'undecided';
 }

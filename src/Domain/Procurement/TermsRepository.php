@@ -14,7 +14,7 @@ interface TermsRepository
     /**
      * Intern exactly what a document states, and return the content hash that names it.
      *
-     * Interning is idempotent by construction: the same artefact returns the same hash and mints no
+     * Interning is idempotent by construction: the same artifact returns the same hash and mints no
      * second row, so an order can be re-stamped, a request retried, or two orders issued under one
      * text without any of it needing to know what came before.
      *
@@ -29,10 +29,10 @@ interface TermsRepository
      * terms interned again find that row by the same route. A reference already printed on other
      * terms is refused, since that is a reference being reused, not a key colliding.
      *
-     * @param string      $body      the terms as normalised Markdown source; normalisation belongs
+     * @param string      $body      the terms as normalized Markdown source; normalization belongs
      *                               to the caller, so identical terms that merely differ in trailing
      *                               whitespace do not intern to two rows
-     * @param string|null $publicRef the reference this edition is printed under, where the artefact
+     * @param string|null $publicRef the reference this edition is printed under, where the artifact
      *                               carries one — part of the digest, because it is part of what the
      *                               supplier receives
      *

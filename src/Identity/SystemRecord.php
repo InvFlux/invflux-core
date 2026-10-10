@@ -21,7 +21,7 @@ use Nandan108\Attrecord\Record;
  * The split is load-bearing rather than tidy. `SubjectIdentifier`'s unique key leads
  * with `system_id`, so an identifier claimed under a host's slug is scoped to that
  * host — which is right for a post id and wrong for a SKU. A SKU is the join key two
- * catalogues are matched on: migrating a store between hosts, or admitting a second
+ * catalogs are matched on: migrating a store between hosts, or admitting a second
  * storefront to one ledger, both work by finding the subject that already carries the
  * incoming SKU. Under a host slug there is nothing to find.
  *

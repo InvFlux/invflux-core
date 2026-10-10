@@ -69,7 +69,7 @@ final class SubjectStockConcern extends Record
 
     /**
      * Cached unfulfillable quantity (`sum(qty_outstanding) − ctd`) for the subject when the
-     * `STOCK_DEFICIT` bit is set; `0` otherwise. Denormalised here by the drainer at the moment it
+     * `STOCK_DEFICIT` bit is set; `0` otherwise. Denormalized here by the drainer at the moment it
      * computes the deficit bit — it already holds both operands — so read paths (the Central
      * Workbench's "Deficit: N" cell) get the magnitude without re-summing order lines per row.
      *

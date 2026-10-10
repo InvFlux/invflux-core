@@ -43,6 +43,12 @@ interface ReceivingSessionRepository
     public function findReceivingSession(int $id): ?ReceivingSession;
 
     /**
+     * The session opened by the request carrying this client token, if one was — how a retried
+     * create finds the session its first attempt already opened ({@see ReceivingSession::$open_key}).
+     */
+    public function findReceivingSessionByOpenKey(string $openKey): ?ReceivingSession;
+
+    /**
      * Every reception currently in progress, newest activity first.
      *
      * The receiving surface's landing list: what is being counted right now, and by whom. Every row

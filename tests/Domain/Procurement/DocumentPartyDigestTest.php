@@ -12,7 +12,7 @@ use PHPUnit\Framework\TestCase;
  * and not merely an implementation detail. Interning against it is only a union — the whole reason
  * this table is content-addressed — while two installs compute the same key for the same facts.
  *
- * Persistence behaviour (interning, collision re-keying, insert-or-ignore) is covered by the storage
+ * Persistence behavior (interning, collision re-keying, insert-or-ignore) is covered by the storage
  * package's integration tests; what is pinned here is the arithmetic those tests rest on.
  */
 final class DocumentPartyDigestTest extends TestCase

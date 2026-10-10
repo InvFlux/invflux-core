@@ -1009,10 +1009,11 @@ per-save assertion. Natural key: `(source_system, external_id)`.
 
 | Case | Value | Meaning |
 |---|---|---|
-| `Incomplete` | 0 | Lines exist, none staged |
-| `Staged` | 1 | At least one line staged; not all shipped |
-| `Shipped` | 2 | Per line: `qty_ordered − qty_shipped − qty_corrected == 0`. Terminal positive state |
-| `Cancelled` | 3 | Cancelled before fulfilment (matched against external order status) |
+| `Untouched` | 0 | Lines exist; nothing staged or shipped yet |
+| `Started` | 1 | Some staging or shipping has happened; not ready to ship as a whole |
+| `Staged` | 2 | All remaining shippable work is staged and nothing blocks it |
+| `Shipped` | 3 | Per line: `qty_ordered − qty_shipped − qty_canceled == 0` (`qty_outstanding == 0`). Terminal positive state |
+| `Canceled` | 4 | Canceled before fulfillment (matched against external order status) |
 
 ### `OrderWorkflowState` (int-backed enum)
 
@@ -1037,8 +1038,11 @@ per-save assertion. Natural key: `(source_system, external_id)`.
 | `unit_price` | `string` | DECIMAL(10,2), order currency; the price **before** discount |
 | `line_discount` | `string` | DECIMAL(10,2), the discount off the whole line (`0.00` when none); mirrors the host document. `refundFor(qty)` prorates `unit_price × qty_ordered − line_discount` cumulatively over corrected units, so the pieces sum to the line's net total |
 | `qty_ordered` | `int` | |
-| `qty_corrected` | `int` | |
+| `qty_canceled` | `int` | Units corrected **before** shipment (cancellations, shortfalls, pre-dispatch refunds); reduces `qty_outstanding`. A reinstated cancellation decrements it |
+| `qty_returned` | `int` | Units corrected **after** shipment (returns, post-dispatch refunds); does not reduce `qty_outstanding` |
+| `qty_corrected` | `int` | VIRTUAL generated, `qty_canceled + qty_returned`; read-only. Every corrected unit, the base `refundFor()` prorates on |
 | `qty_shipped` | `int` | |
+| `qty_outstanding` | `int` | VIRTUAL generated, `GREATEST(0, qty_ordered − qty_canceled − qty_shipped)`; read-only. What is still owed: a returned unit was delivered, so it is not subtracted |
 | `qty_staged` | `int` | |
 | `staged_by` | `?int` | actor id |
 | `staged_at` | `?\DateTimeImmutable` | |
@@ -1142,7 +1146,7 @@ Per-line correction record; drives both inventory movement and (optionally) refu
 | `line_id` | `?string` | BINARY(16) FK order_lines |
 | `type_id` | `int` | TINYINT FK order_correction_types |
 | `reason_id` | `?int` | TINYINT FK order_correction_reasons |
-| `qty` | `int` | SMALLINT, quantity being corrected |
+| `qty` | `int` | INT UNSIGNED, quantity being corrected |
 | `refund_amount` | `string` | DECIMAL(10,2) as string |
 | `refund_mode` | `string` | `RefundMode` value |
 | `note` | `?string` | TEXT |
@@ -1151,12 +1155,12 @@ Per-line correction record; drives both inventory movement and (optionally) refu
 | `processed_at` | `?\DateTimeImmutable` | null = unprocessed; indexed |
 | `refund_scheduled_at` | `?\DateTimeImmutable` | |
 | `refund_executed_at` | `?\DateTimeImmutable` | |
-| `refund_cancelled_at` | `?\DateTimeImmutable` | |
+| `refund_canceled_at` | `?\DateTimeImmutable` | |
 | `manual_refund_done_at` | `?\DateTimeImmutable` | |
 | `manual_refund_done_by` | `?int` | actor id |
 | `stock_issue_id` | `?int` | links to stock issue if reported |
 | `correlation_id` | `?string` | CHAR(26) ULID, indexed; groups related events |
-| `parent_event_id` | `?string` | BINARY(16) FK OrderEvent.id (SetNull on delete); the *decision-tier* event that authorised this correction. Indexed. |
+| `parent_event_id` | `?string` | BINARY(16) FK OrderEvent.id (SetNull on delete); the *decision-tier* event that authorized this correction. Indexed. |
 | `refund_attempts` | `int` | |
 | `next_attempt_at` | `?\DateTimeImmutable` | |
 
@@ -1175,7 +1179,7 @@ proposed (parent_event_id NULL)
     → bundled (parent_event_id set to a decision-tier event id, e.g. lpsc.resolved)
     → processed (processed_at set; engine wrote ledger row)
     → [if refund_mode != none] queued in refund pipeline
-    → refund_executed | refund_cancelled
+    → refund_executed | refund_canceled
 ```
 
 Essentials tier today goes straight from `proposed → bundled` in the same call: the LPSC
@@ -1299,7 +1303,7 @@ GL projectors, reporting) group events without enumerating each type.
 | Case | Value | Role |
 |---|---|---|
 | `Lifecycle` | `lifecycle` | State-machine transitions — `order.created`, `correction.created`, `shipment.sent`, … |
-| `Decision` | `decision` | Resolutions/approvals that authorise downstream Execution events; the natural `parent_event_id` target for `OrderCorrection` |
+| `Decision` | `decision` | Resolutions/approvals that authorize downstream Execution events; the natural `parent_event_id` target for `OrderCorrection` |
 | `Execution` | `execution` | Concrete monetary or stock effects of a decision — `refund.executed`, `refund.failed`, future `gl.posted` |
 | `Ancillary` | `ancillary` | Side-band annotations — `note.added`, `email.sent/suppressed`, `stock_issue.reported`, future `alert.raised` |
 
@@ -1308,10 +1312,10 @@ GL projectors, reporting) group events without enumerating each type.
 ```
 order.created, order.assigned, order.parked, order.unparked,
 order.locked, order.unlocked,
-shipment.prepared, shipment.sent, shipment.cancelled,
+shipment.prepared, shipment.sent, shipment.canceled,
 correction.created, correction.unprocessed,
 lpsc.resolved,
-refund.executed, refund.failed, refund.cancelled_before_execution,
+refund.executed, refund.failed, refund.canceled_before_execution,
 payment.recorded, payment.voided,
 note.added, email.sent, email.suppressed,
 stock_issue.reported
@@ -1322,7 +1326,7 @@ Each case maps to exactly one `OrderEventTier` via `tier(): OrderEventTier`. Not
 - `lpsc.resolved` is Decision-tier; emitted by `LpscCorrectionWriter` once per
   resolution (cancel-fully or accept-partial). Carries `{resolution, execute_at}` in
   payload; correction ids are reverse-traversable via `correction.parent_event_id`.
-- `refund.cancelled_before_execution` is the pre-dispatch cancellation; `refund.voided`
+- `refund.canceled_before_execution` is the pre-dispatch cancellation; `refund.voided`
   is reserved for a future post-execution contra-entry.
 - `correction.processed` and `refund.scheduled` were removed: processing is a
   state-column transition (`processed_at` + `parent_event_id` presence), and the refund
@@ -1724,7 +1728,7 @@ Indexes: `uniq_slot_key`, `idx_active_slot`, `idx_layer_slot`.
 | kind | ENUM('aggregate','unit','batch') DEFAULT 'unit' | |
 | product_id | BIGINT UNSIGNED NULL | FK self CASCADE; root self-reference |
 | variant_id | BIGINT UNSIGNED NULL | FK self CASCADE |
-| reorder_threshold | SMALLINT UNSIGNED NULL | Low stock threshold, mirroring the host's own field where the host has one; the host stays authoritative. A *derived* reorder point belongs in its own column. |
+| low_stock_amount | INT UNSIGNED NULL | Low stock threshold, mirroring the host's own field where the host has one; the host stays authoritative. A *derived* reorder point belongs in its own column. |
 | stock_managed | TINYINT(1) DEFAULT 1 | |
 | created_at | DATETIME(6) | |
 
@@ -1922,7 +1926,7 @@ Columns as listed in § 11 OrderCorrection. FKs:
 - `line_id` → order_lines CASCADE
 - `type_id` → correction_types RESTRICT
 - `reason_id` → correction_reasons SET NULL
-- `parent_event_id` → order_events SET NULL (the decision-tier event that authorised
+- `parent_event_id` → order_events SET NULL (the decision-tier event that authorized
   this correction; e.g. `lpsc.resolved` from LpscCorrectionWriter)
 
 Indexes: `idx_order`, `idx_line`, `idx_refund_queue`, `idx_processed`,

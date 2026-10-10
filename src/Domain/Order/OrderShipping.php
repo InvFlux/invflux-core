@@ -24,7 +24,7 @@ use Nandan108\InvFlux\Identity\RecordIdentity;
  * per *package*, and a source system may divide one order into several: a split cart, an item
  * shipped separately, goods leaving from different stock. So the relationship to the order is
  * one-to-many, and a model that stored the method on the order row could not express the second
- * package at all — nor could it say which method the second one travelled by.
+ * package at all — nor could it say which method the second one traveled by.
  *
  * That most orders in most stores carry exactly one of these is a fact about those stores, not
  * about the model. A projection that collapsed the collection because a sample happened to be

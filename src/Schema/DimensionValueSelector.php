@@ -44,7 +44,7 @@ final class DimensionValueSelector
      * layer is the standing example: it addresses warehouses, and it must equally address the
      * locations that are not warehouses and never will be — supplier-side stock, transit legs, the
      * customer's hands. Those are a different kind of place, not a different depth, so they carry
-     * their own level name rather than being mislabelled as warehouses.
+     * their own level name rather than being mislabeled as warehouses.
      *
      * Level matching is **depth-independent** — a warehouse nested under merchant-declared grouping
      * tiers still matches `warehouse` — which is what lets one level name stay honest as the tree
@@ -74,7 +74,7 @@ final class DimensionValueSelector
         $names = array_keys($unique);
 
         // One name is exactly what `level()` means. Collapsing keeps a single stored shape for a
-        // single behaviour, so two equivalent declarations cannot read as a schema change.
+        // single behavior, so two equivalent declarations cannot read as a schema change.
         return 1 === count($names)
             ? new self(DimensionValueSelectorKind::Level, $names[0])
             : new self(DimensionValueSelectorKind::Levels, null, $names);

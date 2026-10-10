@@ -58,7 +58,7 @@ interface DocumentPartyRepository
     public function findDocumentParties(array $ids): array;
 
     /**
-     * Append one operator judgement about a party — a retirement, or its reversal.
+     * Append one operator judgment about a party — a retirement, or its reversal.
      *
      * Never an update: {@see DocumentPartyDecision} is append-only, so reinstating is a second row
      * and the first stays readable as the fact that it was once decided otherwise.

@@ -172,7 +172,7 @@ final class LinePriceTest extends TestCase
     {
         $this->expectException(RecordValidationException::class);
         SupplierInvoiceLine::newWith([
-            'invoice_id' => 1, 'po_line_id' => 1, 'qty' => 1, 'unit_cost' => '18.0000', 'discount_pct' => '10.00',
+            'invoice_id' => 1, 'po_id' => 1, 'subject_id' => 1, 'qty' => 1, 'unit_cost' => '18.0000', 'discount_pct' => '10.00',
         ]);
     }
 }
