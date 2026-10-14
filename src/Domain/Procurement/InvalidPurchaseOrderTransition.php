@@ -19,6 +19,9 @@ final class InvalidPurchaseOrderTransition extends \DomainException
     /** Nothing has been received, so the order cannot rest as partially received. */
     public const REASON_NOTHING_RECEIVED = 'nothing has been received against it yet';
 
+    /** A received order reopens only for units still open on it, and none are. */
+    public const REASON_NOTHING_OPEN = 'nothing is left open on it';
+
     public function __construct(
         public readonly ?PoStatus $from,
         public readonly PoStatus $to,

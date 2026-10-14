@@ -56,6 +56,11 @@ final class PoEvent extends Record
     public const TYPE_HEADER_CHANGED = 'po.header_changed';
     /** A goods receipt was logged against an open session. Payload: per-line received/damaged qty. */
     public const TYPE_RECEIPT_LOGGED = 'receipt.logged';
+    /**
+     * A goods receipt against this order was corrected. Payload: `{receiptId, correctionId, reverses,
+     * lines: [{subjectId, qty, damaged}]}`, each line's change in good and damaged units.
+     */
+    public const TYPE_RECEIPT_CORRECTED = 'receipt.corrected';
     /** Close-short finalize wrote off a line remainder. Payload: shorted lines, qty, reason. */
     public const TYPE_SHORT_CLOSED = 'po.short_closed';
     /** A structured receiving discrepancy was opened (short / over / damaged / wrong-SKU). */

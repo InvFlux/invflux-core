@@ -113,12 +113,64 @@ final class TransitionPurchaseOrderTest extends TestCase
         self::assertSame(PoStatus::InReception, $result->status);
     }
 
+    /**
+     * A received order with units open again — a receipt corrected down — reopens as partially
+     * received while anything stays received, and loses its completion date until it completes again.
+     */
+    public function testAReceivedOrderReopensForUnitsLeftOpen(): void
+    {
+        $po = $this->po(PoStatus::Received);
+        $po->received_at = new \DateTimeImmutable('2026-10-01');
+
+        $result = ($this->transition(lines: [['qty_received' => 3, 'qty_damaged' => 0, 'qty_open' => 2]]))($po, PoStatus::PartiallyReceived);
+
+        self::assertSame(PoStatus::PartiallyReceived, $result->status);
+        self::assertNull($result->received_at);
+    }
+
+    /** Nothing open: there is nothing to receive, so a received order stays received. */
+    public function testAReceivedOrderWithNothingOpenDoesNotReopen(): void
+    {
+        $this->expectException(InvalidPurchaseOrderTransition::class);
+        $this->expectExceptionMessage(InvalidPurchaseOrderTransition::REASON_NOTHING_OPEN);
+
+        ($this->transition(lines: [['qty_received' => 5, 'qty_damaged' => 0, 'qty_open' => 0]]))(
+            $this->po(PoStatus::Received),
+            PoStatus::PartiallyReceived,
+        );
+    }
+
+    /** Everything corrected away: partially received would claim goods no longer recorded as in. */
+    public function testAReceivedOrderWhoseReceiptWasTakenBackReopensInTransit(): void
+    {
+        $lines = [['qty_received' => 0, 'qty_damaged' => 0, 'qty_open' => 4]];
+
+        self::assertSame(
+            PoStatus::InTransit,
+            ($this->transition(lines: $lines))($this->po(PoStatus::Received), PoStatus::InTransit)->status,
+        );
+
+        $this->expectExceptionMessage(InvalidPurchaseOrderTransition::REASON_NOTHING_RECEIVED);
+        ($this->transition(lines: $lines))($this->po(PoStatus::Received), PoStatus::PartiallyReceived);
+    }
+
+    /** Goods still in: back in transit would hide them; the order reopens as partially received. */
+    public function testAReceivedOrderWithGoodsInDoesNotReopenInTransit(): void
+    {
+        $this->expectExceptionMessage(InvalidPurchaseOrderTransition::REASON_GOODS_RECEIVED);
+
+        ($this->transition(lines: [['qty_received' => 1, 'qty_damaged' => 0, 'qty_open' => 3]]))(
+            $this->po(PoStatus::Received),
+            PoStatus::InTransit,
+        );
+    }
+
     private function po(PoStatus $status): PurchaseOrder
     {
         return PurchaseOrder::newWith(['id' => 1, 'supplier_id' => 1, 'status' => $status]);
     }
 
-    /** @param list<array{qty_received: int, qty_damaged: int}> $lines */
+    /** @param list<array{qty_received: int, qty_damaged: int, qty_open?: int}> $lines */
     private function transition(array $lines): TransitionPurchaseOrder
     {
         $repo = $this->createMock(PurchaseOrderRepository::class);
@@ -127,6 +179,7 @@ final class TransitionPurchaseOrderTest extends TestCase
                 $line = new PurchaseOrderLine();
                 $line->qty_received = $l['qty_received'];
                 $line->qty_damaged = $l['qty_damaged'];
+                $line->qty_open = $l['qty_open'] ?? 0;
 
                 return $line;
             },

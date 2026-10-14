@@ -184,6 +184,31 @@ final class PurchaseOrderLine extends Record
     public int $qty_open = 0;
 
     /**
+     * What a line still brings in, for every **on-order** figure: the supplier's confirmed quantity
+     * where one is recorded, else the ordered one, less what arrived and what was closed short, never
+     * below zero. `$alias` is the line table's alias in the caller's query.
+     *
+     * Not {@see $qty_open}, and the difference is deliberate. `qty_open` measures against what was
+     * *ordered* and is what completes a line: a line the supplier confirmed short stays open until the
+     * buyer closes it short, as a confirmation is the supplier's statement, not the buyer's acceptance
+     * (SAP keeps the order quantity until "delivery completed" is set). On-order answers a different
+     * question — what is still coming — and a unit the supplier said it will not ship is not coming.
+     * Counting it would hold back the reorder that replaces it.
+     *
+     * `qty_expected` is the line's **cumulative** confirmation (one per-line fact), so a second partial
+     * shipping notice must add to it, never overwrite it with that shipment alone. Over-confirmation
+     * counts in full: what is confirmed is what is coming. Every on-order read uses this one
+     * expression, so the figures on two screens cannot disagree about the same unit.
+     */
+    public static function onOrderSql(string $alias): string
+    {
+        return sprintf(
+            'GREATEST(0, CAST(COALESCE(%1$s.qty_expected, %1$s.qty_requested, 0) AS SIGNED) - CAST(%1$s.qty_received AS SIGNED) - CAST(%1$s.qty_closed_short AS SIGNED))',
+            $alias,
+        );
+    }
+
+    /**
      * Supplier quote at PO time, in the PO currency — **always the net price**, after any line
      * discount. Null = inherit the supplier catalog price until the order is issued.
      */

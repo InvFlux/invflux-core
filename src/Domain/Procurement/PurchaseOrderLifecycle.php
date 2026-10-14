@@ -41,7 +41,11 @@ namespace Nandan108\InvFlux\Domain\Procurement;
  * {@see \Nandan108\InvFlux\Application\Procurement\TransitionPurchaseOrder} refuses any move to
  * CANCELED once a line has received anything (an order with goods in finishes by a close-short), and
  * ARRIVED → PARTIALLY_RECEIVED while no line has.
- *   RECEIVED(19)           → (terminal)
+ *   RECEIVED(19)           → PARTIALLY_RECEIVED(17), IN_TRANSIT(11)
+ *                            [reopen: a receipt corrected down left units open and the rest is still
+ *                             coming — partially received while anything stays received, else back in
+ *                             transit. Only while a line has units open (enforced by
+ *                             TransitionPurchaseOrder); never automatic, the buyer chooses it]
  *   CANCELED(21)           → (terminal)
  *
  * Review states IN_REVIEW(3) / APPROVED(5) are schema-present but carry no base edges: the review
@@ -153,9 +157,16 @@ final class PurchaseOrderLifecycle
                 PoStatus::InReception,
                 PoStatus::Received,
             ],
-            // Terminal: an order that has been received or canceled has nowhere left to go.
-            // Filing it out of the working lists is not a move — see PurchaseOrder::$archived_at.
-            PoStatus::Received->value  => [],
+            // Reopened for receiving: a receipt corrected down after the order completed left units
+            // open, and the supplier is sending them. Partially received while anything stays
+            // received, else back in transit. Units that are not coming are closed out instead, and
+            // the order stays received.
+            PoStatus::Received->value  => [
+                PoStatus::PartiallyReceived,
+                PoStatus::InTransit,
+            ],
+            // Terminal: a canceled order has nowhere left to go. Filing an order out of the working
+            // lists is not a move — see PurchaseOrder::$archived_at.
             PoStatus::Canceled->value => [],
         ];
 

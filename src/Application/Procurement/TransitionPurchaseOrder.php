@@ -25,7 +25,10 @@ use Nandan108\InvFlux\Domain\Procurement\PurchaseOrderRepository;
  *   edge map allows PARTIALLY_RECEIVED → ARRIVED → CANCELED, so without this check it would be legal;
  * - **a delivery refused at the dock rests as partially received only if something came before** —
  *   ARRIVED → PARTIALLY_RECEIVED on an order that never received anything would claim goods that
- *   never arrived; such an order goes back to in transit.
+ *   never arrived; such an order goes back to in transit;
+ * - **a received order reopens only for units still open on it**, partially received while anything
+ *   stays received and in transit otherwise. Reopening clears its completion date; the next
+ *   completion stamps a new one.
  * Platform-agnostic: the adapter supplies the acting actor id and any note/payload.
  *
  * @api
@@ -66,6 +69,10 @@ final class TransitionPurchaseOrder
             && (null === $po->id || !$this->hasReceivedGoods($po->id))) {
             throw new InvalidPurchaseOrderTransition($po->status, $toStatus, InvalidPurchaseOrderTransition::REASON_NOTHING_RECEIVED);
         }
+        if (PoStatus::Received === $po->status) {
+            $this->assertCanReopen($po, $toStatus);
+            $po->received_at = null;
+        }
 
         $po->status = $toStatus;
 
@@ -78,6 +85,31 @@ final class TransitionPurchaseOrder
         ]);
 
         return $this->purchaseOrders->transitionPurchaseOrder($po, $event);
+    }
+
+    /**
+     * A received order goes back to receiving only for units open on it, and to the state its lines
+     * support: partially received while anything stays received, in transit when nothing does.
+     */
+    private function assertCanReopen(PurchaseOrder $po, PoStatus $toStatus): void
+    {
+        $open = false;
+        foreach (null === $po->id ? [] : $this->purchaseOrders->linesForPurchaseOrder($po->id) as $line) {
+            if ($line->qty_open > 0) {
+                $open = true;
+                break;
+            }
+        }
+        if (!$open) {
+            throw new InvalidPurchaseOrderTransition($po->status, $toStatus, InvalidPurchaseOrderTransition::REASON_NOTHING_OPEN);
+        }
+        $received = null !== $po->id && $this->hasReceivedGoods($po->id);
+        if (PoStatus::PartiallyReceived === $toStatus && !$received) {
+            throw new InvalidPurchaseOrderTransition($po->status, $toStatus, InvalidPurchaseOrderTransition::REASON_NOTHING_RECEIVED);
+        }
+        if (PoStatus::InTransit === $toStatus && $received) {
+            throw new InvalidPurchaseOrderTransition($po->status, $toStatus, InvalidPurchaseOrderTransition::REASON_GOODS_RECEIVED);
+        }
     }
 
     /** Whether any line has taken delivery of anything, saleable or damaged. */

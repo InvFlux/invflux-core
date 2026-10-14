@@ -112,15 +112,26 @@ final class PurchaseOrderLifecycleTest extends TestCase
     }
 
     /**
-     * Filing an order away is not a status, so the lifecycle knows nothing about it and both
-     * outcomes are dead ends. A stray edge here would be the model regressing: it would mean an
-     * order could be put out of sight only by overwriting how it turned out.
+     * Filing an order away is not a status, so the lifecycle knows nothing about it and a canceled
+     * order is a dead end. A stray edge there would be the model regressing: it would mean an order
+     * could be put out of sight only by overwriting how it turned out.
      */
-    public function testReceivedAndCanceledAreTerminal(): void
+    public function testCanceledIsTerminal(): void
+    {
+        self::assertSame([], $this->free()->transitionsFrom(PoStatus::Canceled));
+    }
+
+    /**
+     * A received order goes back only to receiving — partially received, or in transit when a
+     * correction took everything back — for units a corrected receipt left open. Never to a draft,
+     * never canceled.
+     */
+    public function testAReceivedOrderReopensOnlyForReceiving(): void
     {
         $l = $this->free();
-        self::assertSame([], $l->transitionsFrom(PoStatus::Received));
-        self::assertSame([], $l->transitionsFrom(PoStatus::Canceled));
+        self::assertSame([PoStatus::PartiallyReceived, PoStatus::InTransit], $l->transitionsFrom(PoStatus::Received));
+        self::assertFalse($l->canTransition(PoStatus::Received, PoStatus::InReception));
+        self::assertFalse($l->canTransition(PoStatus::Received, PoStatus::InPrep));
     }
 
     public function testIllegalEdgesAreRejected(): void
@@ -198,13 +209,17 @@ final class PurchaseOrderLifecycleTest extends TestCase
     public function testRegisterTransitionAppendsAndIsIdempotent(): void
     {
         $l = $this->free();
-        // A hypothetical add-on edge (received → in_reception, i.e. reopen a finalized PO to receive more).
+        // A hypothetical add-on edge (received → in_reception, i.e. count a delivery straight against a
+        // finalized PO, skipping the base reopen step).
         $l->registerTransition(PoStatus::Received, PoStatus::InReception);
         $l->registerTransition(PoStatus::Received, PoStatus::InReception);
 
         self::assertTrue($l->canTransition(PoStatus::Received, PoStatus::InReception));
         // Existing edges from received survive the contribution (append, not replace); no duplicate.
-        self::assertSame([PoStatus::InReception], $l->transitionsFrom(PoStatus::Received));
+        self::assertSame(
+            [PoStatus::PartiallyReceived, PoStatus::InTransit, PoStatus::InReception],
+            $l->transitionsFrom(PoStatus::Received),
+        );
     }
 
     public function testRegisterEventTypeContributesLandingEvent(): void

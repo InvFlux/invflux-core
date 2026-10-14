@@ -11,6 +11,7 @@ use Nandan108\InvFlux\Application\Costing\WeightedAverage;
 use Nandan108\InvFlux\Contracts\Inventory\InventoryStore;
 use Nandan108\InvFlux\Contracts\Inventory\UnbackedClaimReader;
 use Nandan108\InvFlux\Domain\Procurement\GoodsReceipt;
+use Nandan108\InvFlux\Domain\Procurement\PoEvent;
 use Nandan108\InvFlux\Domain\Procurement\PurchaseOrderLine;
 use Nandan108\InvFlux\Domain\Procurement\ReceiptCorrection;
 use Nandan108\InvFlux\Domain\Procurement\ReceiptCorrectionLine;
@@ -46,7 +47,9 @@ use Nandan108\InvFlux\Schema\SlotSpaceFactory;
  *   keep the cost they left at.
  * - **Damaged units** are a count kept outside stock, so changing them moves nothing; the ordered
  *   line's damaged count follows.
- * - **Ordered lines** move their received and damaged counts by the line's differences.
+ * - **Ordered lines** move their received and damaged counts by the line's differences, and each order
+ *   the receipt answers gets a `receipt.corrected` event on its timeline. The order's status does not
+ *   move: a received order left with units open is reopened or closed out by the buyer's choice.
  *
  * Locks: SubjectCost (32) → PurchaseOrderLine (34) → GoodsReceipt (35), then the inventory state the
  * movements take. Locking the receipt serializes corrections to it, so each one plans from the
@@ -176,6 +179,9 @@ final class CorrectReceipt
             $poLines = self::correctedPoLines($plan, $locks[PurchaseOrderLine::class]);
             if ([] !== $poLines) {
                 (new RecordSet($poLines))->upsertAll();
+            }
+            foreach (self::orderEvents($plan, $correctionId, $correctedBy) as $event) {
+                $event->save();
             }
 
             return $correction;
@@ -525,6 +531,44 @@ final class CorrectReceipt
         }
 
         return $rows;
+    }
+
+    /**
+     * One `receipt.corrected` event per order the changed lines answer, so the order's timeline shows
+     * the correction and opens the receipt. Payload: `{receiptId, correctionId, reverses, lines:
+     * [{subjectId, qty, damaged}]}`, each line's change in good and damaged units.
+     *
+     * @return list<PoEvent>
+     */
+    private static function orderEvents(PlannedReceiptCorrection $plan, int $correctionId, ?int $actorId): array
+    {
+        $byOrder = [];
+        foreach ($plan->lines as $change) {
+            if (null !== $change->poId) {
+                $byOrder[$change->poId][] = [
+                    'subjectId' => $change->subjectId,
+                    'qty'       => $change->qtyDelta(),
+                    'damaged'   => $change->damagedDelta(),
+                ];
+            }
+        }
+
+        $events = [];
+        foreach ($byOrder as $poId => $lines) {
+            $events[] = PoEvent::newWith([
+                'po_id'      => $poId,
+                'event_type' => PoEvent::TYPE_RECEIPT_CORRECTED,
+                'actor_id'   => $actorId,
+                'payload'    => json_encode([
+                    'receiptId'    => $plan->receiptId,
+                    'correctionId' => $correctionId,
+                    'reverses'     => $plan->reverses,
+                    'lines'        => $lines,
+                ], JSON_THROW_ON_ERROR),
+            ]);
+        }
+
+        return $events;
     }
 
     /**

@@ -158,6 +158,26 @@ final class Supplier extends Record
     #[Column(ColumnType::SmallIntUnsigned, default: 2)]
     public int $cost_decimals = 2;
 
+    /**
+     * The smallest order this supplier accepts, by value — in its own {@see $default_currency} (the
+     * store's when it has none, as for its prices), net of tax like the order lines it is compared
+     * with. A fact about the supplier, shown against a draft and warned about on sending, never a
+     * refusal: suppliers waive their minimums, and an urgent order is worth sending anyway.
+     *
+     * Distinct from a product's minimum order *quantity* (`SupplierProduct::$moq`) and from the low
+     * stock threshold — three minimums meet on a purchase order, and this is the order's.
+     */
+    #[Column(ColumnType::Decimal, precision: 20, scale: 4, nullable: true)]
+    public ?string $min_order_value = null;
+
+    /**
+     * The order value from which this supplier ships free, in the same currency and on the same net
+     * basis as {@see $min_order_value}. Information only: deciding to add units to reach it is a
+     * replenishment policy, not this field's.
+     */
+    #[Column(ColumnType::Decimal, precision: 20, scale: 4, nullable: true)]
+    public ?string $free_freight_from = null;
+
     // --- Pro-tier commercial governance (UI gated by LicenseGate; stored at all tiers). ---
 
     /**

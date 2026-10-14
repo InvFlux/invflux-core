@@ -44,6 +44,23 @@ interface PurchaseOrderRepository extends DocumentPartyRepository
     public function transitionPurchaseOrder(PurchaseOrder $po, PoEvent $event): PurchaseOrder;
 
     /**
+     * Record a close-short in one transaction: the lines whose remainder it wrote off, the order's
+     * finalizing transition and its event, and the {@see PoShortfall} rows saying why — each pointed
+     * at that event. A close whose reasons were lost would leave quantities nobody can explain.
+     *
+     * @param list<PurchaseOrderLine> $lines      the lines written off (their `qty_closed_short` raised)
+     * @param list<PoShortfall>       $shortfalls their parts, `event_id` filled in here
+     */
+    public function closePurchaseOrderShort(PurchaseOrder $po, array $lines, PoEvent $event, array $shortfalls): PurchaseOrder;
+
+    /**
+     * The shortfall recorded by every close-short of this order, in the order it was written.
+     *
+     * @return list<PoShortfall>
+     */
+    public function shortfallsForPurchaseOrder(int $poId): array;
+
+    /**
      * Persist a header edit (e.g. a revised ETA, tax rate) together with its audit {@see PoEvent} in one
      * transaction — same atomic "change + event" guarantee as {@see transitionPurchaseOrder}, but without
      * any status semantics. The event records what changed (the OrderEvents principle: the history is the
