@@ -26,7 +26,22 @@ final class LinePriceTest extends TestCase
         yield 'just under a half rounds down'            => ['0.0001', '50.01', 4, '0.0000'];
         yield 'fractional percent'                       => ['123.4567', '2.25', 4, '120.6789'];
         yield 'never finer than the column'              => ['10.50', '3', 6, '10.1850'];
-        yield 'the largest price the column holds'       => ['999999.9999', '0.01', 4, '999899.9999'];
+        yield 'the old ten-digit ceiling'                 => ['999999.9999', '0.01', 4, '999899.9999'];
+        yield 'a large-number currency'                  => ['850000000', '3', 0, '824500000.0000'];
+    }
+
+    /** A price too large to discount in 64-bit integers is refused, never wrapped into a wrong net. */
+    public function testATooLargePriceIsRefusedNotWrapped(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        LinePrice::netOf('99999999999999.9999', '10', 4);
+    }
+
+    /** A number past 64 bits is refused where it is read, rather than silently capped. */
+    public function testANumberPastSixtyFourBitsIsRefused(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        LinePrice::netOf('123456789012345678901', '0', 4);
     }
 
     #[DataProvider('nets')]

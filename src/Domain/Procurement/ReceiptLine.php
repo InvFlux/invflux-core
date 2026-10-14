@@ -86,7 +86,7 @@ final class ReceiptLine extends Record
     public int $damaged_qty = 0;
 
     /** Cost at receipt (in PO currency) — feeds the WAC recompute. */
-    #[Column(ColumnType::Decimal, precision: 10, scale: 4, nullable: true)]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 4, nullable: true)]
     public ?string $unit_cost_snapshot = null;
 
     /**
@@ -106,7 +106,7 @@ final class ReceiptLine extends Record
      * same function that wrote it, so a reader cannot disagree with the posting. Product-level, like
      * `on_hand_before`.
      */
-    #[Column(ColumnType::Decimal, precision: 10, scale: 4, nullable: true)]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 4, nullable: true)]
     public ?string $cost_before = null;
 
     #[Column(ColumnType::DateTime, precision: 6)]

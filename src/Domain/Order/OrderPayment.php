@@ -54,7 +54,7 @@ final class OrderPayment extends Record
     public ?string $order_id = null;
 
     /** What arrived, in {@see $currency}. Always positive: money going back out is a refund. */
-    #[Column(ColumnType::Decimal, precision: 10, scale: 2, default: '0.00')]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 2, default: '0.00')]
     public string $amount = '0.00';
 
     /** ISO 4217 code of {@see $amount}. */
@@ -69,7 +69,7 @@ final class OrderPayment extends Record
     public ?string $fx_rate = null;
 
     /** The amount in the order's currency — derived on save from {@see $amount} and {@see $fx_rate}. */
-    #[Column(ColumnType::Decimal, precision: 10, scale: 2, default: '0.00')]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 2, default: '0.00')]
     public string $amount_order_ccy = '0.00';
 
     /** The payment method: the gateway's id in the source system, or a code for a manual method. */
@@ -100,7 +100,7 @@ final class OrderPayment extends Record
      * arrived than was due and the rest was accepted as settled, negative when more arrived. Null
      * when the payment was exact. A difference always carries {@see $difference_reason}.
      */
-    #[Column(ColumnType::Decimal, precision: 10, scale: 2, nullable: true)]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 2, nullable: true)]
     public ?string $difference = null;
 
     /** Why a difference was accepted — `bank_fee`, `rounding`, `fx`, … */

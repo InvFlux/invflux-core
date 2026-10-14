@@ -56,7 +56,7 @@ final class StockAdjustmentLine extends Record
      * Auto-captured, never user-entered; `null` = uncosted movement (no basis existed). Does not move
      * WAC or the on-hand valuation — it only values this movement for the export trail.
      */
-    #[Column(ColumnType::Decimal, precision: 10, scale: 4, nullable: true)]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 4, nullable: true)]
     public ?string $unit_cost = null;
 
     /**

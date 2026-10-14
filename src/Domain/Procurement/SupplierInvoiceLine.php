@@ -90,14 +90,14 @@ final class SupplierInvoiceLine extends Record
     public int $qty = 0;
 
     /** Rate billed per unit, in the invoice's currency — the net, after any line discount. */
-    #[Column(ColumnType::Decimal, precision: 10, scale: 4)]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 4)]
     public string $unit_cost = '0.0000';
 
     /**
      * The price before the supplier's line discount, when the invoice states one. Set only together
      * with {@see $discount_pct}; {@see $unit_cost} is then the net {@see LinePrice} computes from them.
      */
-    #[Column(ColumnType::Decimal, precision: 10, scale: 4, nullable: true)]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 4, nullable: true)]
     public ?string $list_unit_cost = null;
 
     /** The supplier's percentage discount off {@see $list_unit_cost}, 0 up to (not including) 100. */

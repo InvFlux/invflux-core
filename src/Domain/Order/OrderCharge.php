@@ -81,11 +81,11 @@ final class OrderCharge extends Record
     public string $name = '';
 
     /** The charge before tax, in the order's currency. Negative for a discount recorded as a charge. */
-    #[Column(ColumnType::Decimal, precision: 10, scale: 2, default: '0.00')]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 2, default: '0.00')]
     public string $amount = '0.00';
 
     /** The tax on it, in the order's currency. `0.00` for an untaxed charge. */
-    #[Column(ColumnType::Decimal, precision: 10, scale: 2, default: '0.00')]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 2, default: '0.00')]
     public string $tax = '0.00';
 
     #[Relation(

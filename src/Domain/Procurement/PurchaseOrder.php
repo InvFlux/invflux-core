@@ -257,7 +257,7 @@ final class PurchaseOrder extends Record
     public ?int $terms_hash = null;
 
     /** Denormalized cache of the line totals; recompute = SUM(po_lines: qty_requested * unit_cost). */
-    #[Column(ColumnType::Decimal, precision: 12, scale: 4, nullable: true, comment: 'cache of SUM(po_lines.qty_requested * unit_cost)')]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 4, nullable: true, comment: 'cache of SUM(po_lines.qty_requested * unit_cost)')]
     public ?string $total_amount = null;
 
     #[Column(ColumnType::Bool, default: false)]

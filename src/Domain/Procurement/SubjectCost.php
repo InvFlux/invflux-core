@@ -116,11 +116,11 @@ final class SubjectCost extends Record
     public ?string $valuation_class = null;
 
     /** Merchant-set / seeded cost basis (the Essentials valuation bootstrap). */
-    #[Column(ColumnType::Decimal, precision: 10, scale: 4, nullable: true)]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 4, nullable: true)]
     public ?string $seed_cost = null;
 
     /** Weighted-average cost, recomputed on goods receipt (Essentials WAC). */
-    #[Column(ColumnType::Decimal, precision: 10, scale: 4, nullable: true)]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 4, nullable: true)]
     public ?string $weighted_avg_cost = null;
 
     /** ISO-4217 store-base currency for the cost figures. */

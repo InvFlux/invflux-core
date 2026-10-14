@@ -116,7 +116,7 @@ final class ShipmentLine extends Record implements AppendOnly
     public int $qty_shipped = 0;
 
     /** Authoritative COGS unit cost — WAC at dispatch instant. Null = uncosted. Immutable. */
-    #[Column(ColumnType::Decimal, precision: 10, scale: 4, nullable: true)]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 4, nullable: true)]
     public ?string $unit_cost = null;
 
     /** Valuation method that produced unit_cost: `wac` (Essentials) or `fifo` (Pro). Null when uncosted. ENUM value list derived from the caster's enum. */

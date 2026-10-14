@@ -101,8 +101,8 @@ final class TaxLine extends Record
     #[Column(ColumnType::VarChar, length: 64)]
     public string $tax_code = '';
 
-    /** Pre-tax amount (net) on this rate share. DECIMAL(10,2) as string. */
-    #[Column(ColumnType::Decimal, precision: 10, scale: 2, default: '0.00')]
+    /** Pre-tax amount (net) on this rate share. DECIMAL(20,2) as string. */
+    #[Column(ColumnType::Decimal, precision: 20, scale: 2, default: '0.00')]
     public string $net = '0.00';
 
     /**
@@ -112,8 +112,8 @@ final class TaxLine extends Record
     #[Column(ColumnType::Decimal, precision: 9, scale: 4, default: '0.0000')]
     public string $tax_rate = '0.0000';
 
-    /** Tax amount on this rate share. DECIMAL(10,2) as string. */
-    #[Column(ColumnType::Decimal, precision: 10, scale: 2, default: '0.00')]
+    /** Tax amount on this rate share. DECIMAL(20,2) as string. */
+    #[Column(ColumnType::Decimal, precision: 20, scale: 2, default: '0.00')]
     public string $tax_amount = '0.00';
 
     #[Column(ColumnType::DateTime, nullable: true, precision: 6)]

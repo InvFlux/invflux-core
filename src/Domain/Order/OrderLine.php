@@ -187,7 +187,7 @@ final class OrderLine extends Record
      * Never the refund basis on its own: a discounted line was not paid at this price, and refunding
      * it asks the host to return money it never took. {@see refundFor()} is the refund basis.
      */
-    #[Column(ColumnType::Decimal, precision: 10, scale: 2, default: '0.00')]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 2, default: '0.00')]
     public string $unit_price = '0.00';
 
     /**
@@ -202,7 +202,7 @@ final class OrderLine extends Record
      * Mirrors the host document, like {@see $qty_ordered}: a coupon applied after the order came in
      * changes it.
      */
-    #[Column(ColumnType::Decimal, precision: 10, scale: 2, default: '0.00')]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 2, default: '0.00')]
     public string $line_discount = '0.00';
 
     /**
@@ -215,7 +215,7 @@ final class OrderLine extends Record
      * (WC's `_cogs_value` is a projection of this, never its source). **Never summed as period COGS**
      * — that is `Σ ShipmentLine`. `null` = uncosted (no WAC and no `seed_cost` seed).
      */
-    #[Column(ColumnType::Decimal, precision: 10, scale: 4, nullable: true)]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 4, nullable: true)]
     public ?string $unit_cost = null;
 
     /** Valuation method that produced {@see $unit_cost}: `wac` (Essentials) or `fifo` (Pro). Null when uncosted. ENUM value list derived from the caster's enum. */

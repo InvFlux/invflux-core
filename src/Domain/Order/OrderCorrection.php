@@ -81,7 +81,7 @@ final class OrderCorrection extends Record
     #[Column(ColumnType::IntUnsigned, default: 0)]
     public int $qty = 0;
 
-    #[Column(ColumnType::Decimal, precision: 10, scale: 2, default: '0.00')]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 2, default: '0.00')]
     public string $refund_amount = '0.00';
 
     #[Column(ColumnType::Text, nullable: true)]

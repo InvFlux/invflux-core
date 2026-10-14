@@ -61,10 +61,10 @@ final class ReceiptCorrectionLine extends Record
     public int $damaged_after = 0;
 
     /** Unit cost in the receipt's line currency; null when the line carried none. */
-    #[Column(ColumnType::Decimal, precision: 10, scale: 4, nullable: true)]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 4, nullable: true)]
     public ?string $unit_cost_before = null;
 
-    #[Column(ColumnType::Decimal, precision: 10, scale: 4, nullable: true)]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 4, nullable: true)]
     public ?string $unit_cost_after = null;
 
     /** The product's total on hand just before the correction moved anything; product-level. */
@@ -72,11 +72,11 @@ final class ReceiptCorrectionLine extends Record
     public int $on_hand_before = 0;
 
     /** The product's average before, in the store base; null when it had none. Product-level. */
-    #[Column(ColumnType::Decimal, precision: 10, scale: 4, nullable: true)]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 4, nullable: true)]
     public ?string $cost_before = null;
 
     /** The product's average after, in the store base; null when it had none. Product-level. */
-    #[Column(ColumnType::Decimal, precision: 10, scale: 4, nullable: true)]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 4, nullable: true)]
     public ?string $cost_after = null;
 
     /**
@@ -84,7 +84,7 @@ final class ReceiptCorrectionLine extends Record
      * into the average: positive when it already left with shipped units. Zero when absorbed.
      * Product-level: carried on the product's first changed line only, so a sum never counts it twice.
      */
-    #[Column(ColumnType::Decimal, precision: 12, scale: 4, default: '0.0000')]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 4, default: '0.0000')]
     public string $cost_variance = '0.0000';
 
     #[Relation(

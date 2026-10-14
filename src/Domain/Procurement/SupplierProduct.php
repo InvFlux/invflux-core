@@ -57,7 +57,7 @@ final class SupplierProduct extends Record
     public int $subject_id = 0;
 
     /** Purchase price in {@see $currency} (defaults to the supplier's currency). */
-    #[Column(ColumnType::Decimal, precision: 10, scale: 4, nullable: true)]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 4, nullable: true)]
     public ?string $unit_price = null;
 
     /** ISO-4217; null falls back to the supplier's default_currency. */

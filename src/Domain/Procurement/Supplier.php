@@ -151,7 +151,7 @@ final class Supplier extends Record
 
     /**
      * Decimal places shown/entered for this supplier's unit costs — a display/input precision,
-     * not storage (costs are always stored DECIMAL(10,4)). Defaults to 2 (the usual currency
+     * not storage (costs are always stored DECIMAL(20,4)). Defaults to 2 (the usual currency
      * minor unit); raise to 3–4 for suppliers whose per-unit costs are fractional (components,
      * bulk goods) or for 3-decimal currencies.
      */

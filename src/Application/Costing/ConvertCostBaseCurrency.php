@@ -42,7 +42,7 @@ use Nandan108\InvFlux\Exceptions\CostConversionOverflowException;
  * - **Ungrounded rows convert too.** A sidecar row with amounts but no `cost_currency` predates
  *   grounding and is denominated in the outgoing base by definition (that is the assumption the
  *   install-time grounding itself makes), so it converts and gets stamped.
- * - **Overflow is refused, never truncated.** The columns are `DECIMAL(10,4)`; a rate that would push
+ * - **Overflow is refused, never truncated.** The columns are `DECIMAL(20,4)`; a rate that would push
  *   any amount past that ceiling aborts the whole conversion instead of silently clamping a cost.
  * - **Rounding is 4-dp, once.** `ROUND(amount × rate, 4)` in SQL. Converting back at `1/rate` does not
  *   necessarily restore the original cent — accepted: a WAC is a derived average, not a ledger balance.
@@ -54,8 +54,8 @@ use Nandan108\InvFlux\Exceptions\CostConversionOverflowException;
  */
 final class ConvertCostBaseCurrency
 {
-    /** Largest amount `DECIMAL(10,4)` can hold — the conversion refuses rather than clamp to it. */
-    public const AMOUNT_CEILING = '999999.9999';
+    /** Largest amount `DECIMAL(20,4)` can hold — the conversion refuses rather than clamp to it. */
+    public const AMOUNT_CEILING = '9999999999999999.9999';
 
     public function __construct(private readonly TransactionalStore $store)
     {
@@ -160,7 +160,7 @@ final class ConvertCostBaseCurrency
     }
 
     /**
-     * Refuse a rate that would overflow `DECIMAL(10,4)` on any row.
+     * Refuse a rate that would overflow `DECIMAL(20,4)` on any row.
      *
      * Checked up-front against the current maxima rather than discovered mid-`UPDATE`: MySQL clamps an
      * out-of-range decimal to the column ceiling (a warning, not an error, outside strict mode), which

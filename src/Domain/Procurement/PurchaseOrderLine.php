@@ -212,7 +212,7 @@ final class PurchaseOrderLine extends Record
      * Supplier quote at PO time, in the PO currency — **always the net price**, after any line
      * discount. Null = inherit the supplier catalog price until the order is issued.
      */
-    #[Column(ColumnType::Decimal, precision: 10, scale: 4, nullable: true)]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 4, nullable: true)]
     public ?string $unit_cost = null;
 
     /**
@@ -221,7 +221,7 @@ final class PurchaseOrderLine extends Record
      * the two — they record how the net was reached, for the document and the operator, and nothing
      * values stock from them.
      */
-    #[Column(ColumnType::Decimal, precision: 10, scale: 4, nullable: true)]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 4, nullable: true)]
     public ?string $list_unit_cost = null;
 
     /** The supplier's percentage discount off {@see $list_unit_cost}, 0 up to (not including) 100. */
@@ -250,7 +250,7 @@ final class PurchaseOrderLine extends Record
      * the purchase-order *document* must keep quoting {@see $unit_cost}, or a price the supplier
      * invoiced would appear on the order they were sent.
      */
-    #[Column(ColumnType::Decimal, precision: 10, scale: 4, nullable: true)]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 4, nullable: true)]
     public ?string $unit_cost_invoiced = null;
 
     /**

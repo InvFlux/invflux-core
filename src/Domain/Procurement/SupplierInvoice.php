@@ -106,7 +106,7 @@ final class SupplierInvoice extends Record
      * also what lets a Pro match notice that lines and total *do not* reconcile, which is a finding
      * rather than an error.
      */
-    #[Column(ColumnType::Decimal, precision: 12, scale: 4, nullable: true)]
+    #[Column(ColumnType::Decimal, precision: 20, scale: 4, nullable: true)]
     public ?string $stated_total = null;
 
     #[Column(ColumnType::VarChar, length: 500, nullable: true)]

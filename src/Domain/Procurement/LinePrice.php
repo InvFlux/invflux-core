@@ -37,7 +37,7 @@ namespace Nandan108\InvFlux\Domain\Procurement;
  */
 final class LinePrice
 {
-    /** Decimal places of a per-unit price column (`DECIMAL(10,4)`). */
+    /** Decimal places of a per-unit price column (`DECIMAL(20,4)`). */
     private const PRICE_SCALE = 4;
 
     /** Decimal places of a discount column (`DECIMAL(5,2)`). */
@@ -128,8 +128,13 @@ final class LinePrice
         $step = (int) (10 ** (self::PRICE_SCALE - $decimals));
         $divisor = $whole * $step;
 
-        // Half-up on a non-negative product; both factors are bounded by their columns, so the product
-        // stays far inside a 64-bit integer (10^10 × 10^4).
+        // Half-up on a non-negative product, computed in 64-bit integers. The column holds more than
+        // that product can (DECIMAL(20,4)), so a list price whose product would overflow — above
+        // about 92 billion a unit — is refused rather than wrapped into a wrong figure.
+        if ($listUnits > intdiv(\PHP_INT_MAX - $divisor, $whole)) {
+            throw new \InvalidArgumentException('This price is too large to discount exactly.');
+        }
+
         return self::format(intdiv($listUnits * ($whole - $pctUnits) + intdiv($divisor, 2), $divisor) * $step, self::PRICE_SCALE);
     }
 
@@ -193,7 +198,12 @@ final class LinePrice
         }
         $fraction = $m[2] ?? '';
         $kept = str_pad(substr($fraction, 0, $scale), $scale, '0');
-        $units = (int) (('' === $m[1] ? '0' : $m[1]).$kept);
+        $digits = ltrim(('' === $m[1] ? '0' : $m[1]).$kept, '0');
+        // `(int)` saturates silently past 64 bits; refuse instead, before a wrong number exists.
+        if (\strlen($digits) > 18) {
+            throw new \InvalidArgumentException(sprintf('Too large a number: "%s".', $value));
+        }
+        $units = (int) ('' === $digits ? '0' : $digits);
         if (\strlen($fraction) > $scale && (int) $fraction[$scale] >= 5) {
             ++$units;
         }
