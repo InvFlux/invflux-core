@@ -121,12 +121,12 @@ final class ReceiptSourceTest extends TestCase
     public function testEachReasonHasADefinedCostSource(): void
     {
         $expected = [
-            ReceiptReason::OpeningBalance->value    => CostSource::Entered,
+            ReceiptReason::OpeningBalance->value        => CostSource::Entered,
             ReceiptReason::PurchaseWithoutOrder->value  => CostSource::Entered,
-            ReceiptReason::InHouseBuild->value      => CostSource::Entered,
-            ReceiptReason::TransferIn->value        => CostSource::Derived,
-            ReceiptReason::FoundStock->value        => CostSource::SeedFallback,
-            ReceiptReason::SampleOrDonation->value  => CostSource::Free,
+            ReceiptReason::InHouseBuild->value          => CostSource::Entered,
+            ReceiptReason::TransferIn->value            => CostSource::Derived,
+            ReceiptReason::FoundStock->value            => CostSource::SeedFallback,
+            ReceiptReason::SampleOrDonation->value      => CostSource::Free,
         ];
 
         foreach (ReceiptReason::cases() as $reason) {

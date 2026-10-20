@@ -33,9 +33,9 @@ final class StoredValuesTest extends TestCase
     {
         self::assertSame(
             [
-                'InPrep' => 1, 'InReview' => 3, 'Approved' => 5, 'Submitted' => 7, 'Acknowledged' => 9,
+                'InPrep'    => 1, 'InReview' => 3, 'Approved' => 5, 'Submitted' => 7, 'Acknowledged' => 9,
                 'InTransit' => 11, 'Arrived' => 13, 'InReception' => 15, 'PartiallyReceived' => 17,
-                'Received' => 19, 'Canceled' => 21,
+                'Received'  => 19, 'Canceled' => 21,
             ],
             self::values(PoStatus::cases()),
         );

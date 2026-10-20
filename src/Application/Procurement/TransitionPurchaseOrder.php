@@ -52,7 +52,7 @@ final class TransitionPurchaseOrder
     /**
      * @param array<string, mixed>|null $payload structured context for the event (JSON-encoded)
      *
-     * @throws \Nandan108\InvFlux\Domain\Procurement\InvalidPurchaseOrderTransition
+     * @throws InvalidPurchaseOrderTransition
      */
     public function __invoke(
         PurchaseOrder $po,

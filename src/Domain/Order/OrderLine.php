@@ -158,6 +158,16 @@ final class OrderLine extends Record
     public ?string $image_url = null;
 
     /**
+     * The host's own identifier for the line's image, snapshotted at order time.
+     *
+     * The adapter resolves it to a URL when the line is read, so the image follows the host's media
+     * handling (domain, CDN, regenerated sizes). Null on lines projected before it existed, which
+     * fall back to {@see $image_url}. A string, so a host whose image ids are not numbers fits.
+     */
+    #[Column(ColumnType::VarChar, length: 64, nullable: true)]
+    public ?string $image_ref = null;
+
+    /**
      * The line's shipping class, snapshotted at projection time — a host-native grouping that says
      * *how this item must travel*, not what it is. A packer needs it before they pack: a class
      * carrying a packaging obligation (fragile, hazardous, a contracted service for bottles) is a

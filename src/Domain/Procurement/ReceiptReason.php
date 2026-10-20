@@ -51,9 +51,9 @@ enum ReceiptReason: string
     {
         return match ($this) {
             self::OpeningBalance, self::PurchaseWithoutOrder, self::InHouseBuild => CostSource::Entered,
-            self::TransferIn                                                 => CostSource::Derived,
-            self::FoundStock                                                 => CostSource::SeedFallback,
-            self::SampleOrDonation                                           => CostSource::Free,
+            self::TransferIn                                                     => CostSource::Derived,
+            self::FoundStock                                                     => CostSource::SeedFallback,
+            self::SampleOrDonation                                               => CostSource::Free,
         };
     }
 

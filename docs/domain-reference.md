@@ -1035,6 +1035,7 @@ per-save assertion. Natural key: `(source_system, external_id)`.
 | `sku` | `string` | snapshot |
 | `gtin` | `?string` | snapshot |
 | `image_url` | `?string` | snapshot |
+| `image_ref` | `?string` | snapshot: the host's own id for the image (VARCHAR 64), resolved to a URL when the line is read; null on older lines, which fall back to `image_url` |
 | `unit_price` | `string` | DECIMAL(10,2), order currency; the price **before** discount |
 | `line_discount` | `string` | DECIMAL(10,2), the discount off the whole line (`0.00` when none); mirrors the host document. `refundFor(qty)` prorates `unit_price × qty_ordered − line_discount` cumulatively over corrected units, so the pieces sum to the line's net total |
 | `qty_ordered` | `int` | |
