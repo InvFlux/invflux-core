@@ -129,10 +129,10 @@ final class BaseMovementType
     {
         return [
             new MovementTypeDefinition(self::RESERVE, 'Reserve'),
-            new MovementTypeDefinition(self::RELEASE, 'Release'),
-            new MovementTypeDefinition(self::BOOK_RESERVED, 'Book reserved'),
-            new MovementTypeDefinition(self::BOOK_RECOVERED, 'Book recovered'),
-            new MovementTypeDefinition(self::CLEAR_CTD, 'Clear sold-on-dispatch'),
+            new MovementTypeDefinition(self::RELEASE, 'Reservation released'),
+            new MovementTypeDefinition(self::BOOK_RESERVED, 'Reservation committed'),
+            new MovementTypeDefinition(self::BOOK_RECOVERED, 'Free stock committed'),
+            new MovementTypeDefinition(self::CLEAR_CTD, 'Order shipped'),
             new MovementTypeDefinition(self::DISPATCH_REVERSAL, 'Shipment reversed'),
             new MovementTypeDefinition(self::CORRECTION_RESTOCK, 'Correction restock'),
             new MovementTypeDefinition(self::CORRECTION_WRITEOFF_CTD, 'Correction write-off'),
