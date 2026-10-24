@@ -118,7 +118,8 @@ final class PartyFactNormalizer
     }
 
     /**
-     * Prose, made comparable: composed, single-spaced, caseless and unaccented.
+     * Prose, made comparable: single-spaced, caseless and unaccented — {@see UnicodeFold}, which needs
+     * no intl extension at runtime.
      *
      * `MB_CASE_FOLD` rather than an upper- or lower-casing, because caseless matching is the
      * operation Unicode defines for exactly this and it handles the cases a naive fold does not —
@@ -126,18 +127,7 @@ final class PartyFactNormalizer
      */
     private static function fold(string $value): string
     {
-        $value = \Normalizer::normalize($value, \Normalizer::FORM_C);
-        $value = trim((string) preg_replace('/\s+/u', ' ', $value));
-        $value = mb_convert_case($value, MB_CASE_FOLD, 'UTF-8');
-
-        // Decompose, then drop the accents that decomposing exposed. Composed and decomposed
-        // spellings look identical on screen and differ byte for byte, so this closes an invisible
-        // way to fork a key as much as it folds accents away.
-        return (string) preg_replace(
-            '/\p{Mn}+/u',
-            '',
-            (string) \Normalizer::normalize($value, \Normalizer::FORM_D),
-        );
+        return UnicodeFold::fold($value);
     }
 
     /** {@see fold()}, with every separator removed — for values that are identifiers, not prose. */
